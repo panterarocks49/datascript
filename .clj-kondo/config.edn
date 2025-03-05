@@ -1,4 +1,12 @@
 {:lint-as {promesa.core/let   clojure.core/let
            promesa.core/plet  clojure.core/let
            promesa.core/loop  clojure.core/loop
-           promesa.core/recur clojure.core/recur}}
+           promesa.core/recur clojure.core/recur
+           datascript.db/defn+ clojure.core/defn
+           datascript.db/defcomp clojure.core/defn
+           datascript.db/declare+ clojure.core/declare
+           datascript.db/defrecord-updatable clojure.core/deftype}
+ ;; defrecord stuff doesn't work, basically no macros will lint right
+ :config-in-ns {datascript.db {:ignore true}
+                datascript.conn {:ignore true}}
+ :config-in-call {datascript.db/declare+ {:linters {:unresolved-symbol {:level :off}}}}}

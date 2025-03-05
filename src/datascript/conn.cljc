@@ -1,21 +1,21 @@
 (ns datascript.conn
   (:require
-    [datascript.db :as db #?@(:cljs [:refer [DB FilteredDB]])]
-    [datascript.storage :as storage]
-    [extend-clj.core :as extend]
-    [me.tonsky.persistent-sorted-set :as set])
+   [datascript.db :as db #?@(:cljs [:refer [DB FilteredDB]])]
+   [datascript.storage :as storage]
+   [extend-clj.core :as extend]
+   [me.tonsky.persistent-sorted-set :as set])
   #?(:clj
      (:import
-       [datascript.db DB FilteredDB])))
+      [datascript.db DB FilteredDB])))
 
 (extend/deftype-atom Conn [atom]
   (deref-impl [this]
-    (:db @atom))
+              (:db @atom))
   (compare-and-set-impl [this oldv newv]
-    (compare-and-set!
-      atom
-      (assoc @atom :db oldv)
-      (assoc @atom :db newv))))
+                        (compare-and-set!
+                         atom
+                         (assoc @atom :db oldv)
+                         (assoc @atom :db newv))))
 
 (defn- make-conn [opts]
   (->Conn (atom opts)))
@@ -69,16 +69,15 @@
   ([schema opts]
    (conn-from-db (db/empty-db schema (storage/maybe-adapt-storage opts)))))
 
-#?(:clj
-   (defn restore-conn
-     ([storage]
-      (restore-conn storage {}))
-     ([storage opts]
-      (when-some [[db tail] (storage/restore-impl storage opts)]
-        (make-conn
-          {:db (storage/db-with-tail db tail)
-           :tx-tail tail
-           :db-last-stored db})))))
+(defn restore-conn
+  ([storage]
+   (restore-conn storage {}))
+  ([storage opts]
+   (when-some [[db tail] (storage/restore-impl storage opts)]
+     (make-conn
+      {:db (storage/db-with-tail db tail)
+       :tx-tail tail
+       :db-last-stored db}))))
 
 (defn ^:no-doc -transact! [conn tx-data tx-meta]
   {:pre [(conn? conn)]}
