@@ -1,16 +1,16 @@
-(ns ^:no-doc datascript.pull-api
+(ns ^:no-doc datascript-async.pull-api
   (:require
-    [clojure.string :as str]
-    [datascript.pull-parser :as dpp]
-    [datascript.db :as db #?@(:cljs [:refer [DB]])]
-    [datascript.lru :as lru]
-    [datascript.util :as util]
-    [me.tonsky.persistent-sorted-set :as set])
+   [clojure.string :as str]
+   [datascript-async.pull-parser :as dpp]
+   [datascript-async.db :as db #?@(:cljs [:refer [DB]])]
+   [datascript-async.lru :as lru]
+   [datascript-async.util :as util]
+   [me.tonsky.persistent-sorted-set :as set])
   #?(:clj
      (:import
-       [clojure.lang ISeq]
-       [datascript.db Datom DB]
-       [datascript.pull_parser PullAttr PullPattern])))
+      [clojure.lang ISeq]
+      [datascript-async.db Datom DB]
+      [datascript.pull_parser PullAttr PullPattern])))
 
 (declare pull-impl attrs-frame ref-frame ->ReverseAttrsFrame)
 

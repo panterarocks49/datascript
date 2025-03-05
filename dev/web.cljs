@@ -2,9 +2,9 @@
   (:require
    ["idb" :as idb]
    [datascript.transit :as dt]
-   [datascript.core :as d]
-   [datascript.db :as ddb]
-   [datascript.storage :as storage]
+   [datascript-async.core :as d]
+   [datascript-async.db :as ddb]
+   [datascript-async.storage :as storage]
    [promesa.core :as p]
    [me.tonsky.persistent-sorted-set.arrays :as arrays]
    [me.tonsky.persistent-sorted-set-async :as pss]))

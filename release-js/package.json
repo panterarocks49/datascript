@@ -33,7 +33,7 @@
       "url": "https://github.com/tonsky/datascript/blob/master/LICENSE"
     }
   ],
-  "main": "./datascript.js",
+  "main": "./datascript-async.js",
   "repository": {
     "type": "git",
     "url": "git://github.com/tonsky/datascript.git"
@@ -42,5 +42,5 @@
       "node": ">=0.8.22"
   },
   "dependencies": {},
-  "files": ["datascript.js"]
+  "files": ["datascript-async.js"]
 }

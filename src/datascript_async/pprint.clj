@@ -1,9 +1,9 @@
-(ns datascript.pprint
+(ns datascript-async.pprint
   (:require
-   [datascript.db :as db]
+   [datascript-async.db :as db]
    [clojure.pprint :as pp])
   (:import
-   [datascript.db Datom DB]))
+   [datascript-async.db Datom DB]))
 
 (defmethod pp/simple-dispatch Datom [^Datom d]
   (pp/pprint-logical-block :prefix "#datascript/Datom [" :suffix "]"
@@ -22,7 +22,7 @@
                            (pp/write-out (db/datom-added d))))
 
 (defn- pp-db [db ^java.io.Writer w]
-  (pp/pprint-logical-block :prefix "#datascript/DB {" :suffix "}"
+  (pp/pprint-logical-block :prefix "#datascript-async.db {" :suffix "}"
     (pp/pprint-logical-block
       (pp/write-out :schema)
       (.write w " ")

@@ -1,8 +1,8 @@
-(ns datascript.util
+(ns datascript-async.util
   (:refer-clojure :exclude [find])
   #?(:clj
      (:import
-       [java.util UUID])))
+      [java.util UUID])))
 
 (def ^:dynamic *debug*
   false)

@@ -1,13 +1,13 @@
 (ns datascript.test.parser-rules
   (:require
-    [clojure.test :as t :refer [is are deftest testing]]
-    [datascript.core :as d]
-    [datascript.db :as db]
-    [datascript.parser :as dp]
-    [datascript.test.core :as tdc])
+   [clojure.test :as t :refer [is are deftest testing]]
+   [datascript-async.core :as d]
+   [datascript-async.db :as db]
+   [datascript-async.parser :as dp]
+   [datascript.test.core :as tdc])
   #?(:clj
      (:import
-       [clojure.lang ExceptionInfo])))
+      [clojure.lang ExceptionInfo])))
 
 (deftest clauses
   (are [form res] (= (set (dp/parse-rules form)) res)

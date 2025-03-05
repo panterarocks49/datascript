@@ -1,9 +1,9 @@
 (ns datascript.test.db
   (:require
-    [clojure.data]
-    [clojure.test :as t :refer [is are deftest testing]]
-    [datascript.core :as d]
-    [datascript.db :as db :refer [defrecord-updatable]]))
+   [clojure.data]
+   [clojure.test :as t :refer [is are deftest testing]]
+   [datascript-async.core :as d]
+   [datascript-async.db :as db :refer [defrecord-updatable]]))
 
 ;;
 ;; verify that defrecord-updatable works with compiler/core macro configuration

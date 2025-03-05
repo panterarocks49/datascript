@@ -1,13 +1,13 @@
 (ns datascript.test.core
   (:require
-    [clojure.edn :as edn]
-    [clojure.test :as t :refer [is are deftest testing]]
-    [clojure.string :as str]
-    [cognitect.transit :as transit]
-    [datascript.core :as d]
-    [datascript.impl.entity :as de]
-    [datascript.db :as db :refer [defrecord-updatable]]
-    #?(:cljs [datascript.test.cljs])))
+   [clojure.edn :as edn]
+   [clojure.test :as t :refer [is are deftest testing]]
+   [clojure.string :as str]
+   [cognitect.transit :as transit]
+   [datascript-async.core :as d]
+   [datascript-async.impl.entity :as de]
+   [datascript-async.db :as db :refer [defrecord-updatable]]
+   #?(:cljs [datascript.test.cljs])))
 
 #?(:cljs
    (enable-console-print!))

@@ -1,8 +1,8 @@
-(ns datascript.storage
+(ns datascript-async.storage
   (:require
    [promesa.core :as p]
-   [datascript.db :as db]
-   [datascript.util :as util]
+   [datascript-async.db :as db]
+   [datascript-async.util :as util]
    [me.tonsky.persistent-sorted-set.arrays :as arrays]
    [me.tonsky.persistent-sorted-set.storage :as set.storage]
    [me.tonsky.persistent-sorted-set-async :as set]))

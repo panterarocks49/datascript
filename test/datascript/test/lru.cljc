@@ -1,7 +1,7 @@
 (ns datascript.test.lru
   (:require
-    [clojure.test :as t :refer [is are deftest testing]]
-    [datascript.lru :as lru]))
+   [clojure.test :as t :refer [is are deftest testing]]
+   [datascript-async.lru :as lru]))
 
 (deftest test-lru
   (let [l0 (lru/lru 2)

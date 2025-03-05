@@ -43,9 +43,9 @@
       { :id "advanced"
         :source-paths ["src" "test"]
         :compiler {
-          :output-to     "target/datascript.js"
+          :output-to     "target/datascript-async.js"
           :optimizations :advanced
-          :source-map    "target/datascript.js.map"
+          :source-map    "target/datascript-async.js.map"
           :pretty-print  true
           :recompile-dependents false
           :parallel-build true
@@ -56,9 +56,9 @@
         :source-paths ["src" "bench"]
         :compiler {
           :main          datascript.bench.datascript
-          :output-to     "target/datascript.js"
+          :output-to     "target/datascript-async.js"
           :optimizations :advanced
-          ; :source-map    "target/datascript.js.map"
+          ; :source-map    "target/datascript-async.js.map"
           ; :pretty-print  true
           :recompile-dependents false
           :parallel-build true
@@ -72,7 +72,7 @@
         :source-paths ["src" "test"]
         :compiler {
           :main          datascript.test
-          :output-to     "target/datascript.js"
+          :output-to     "target/datascript-async.js"
           :output-dir    "target/none"
           :optimizations :none
           :source-map    true
@@ -96,7 +96,7 @@
   :clean-targets ^{:protect false} [
     "target"
     "release-js/datascript.bare.js"
-    "release-js/datascript.js"
+    "release-js/datascript-async.js"
   ]
   
   :deploy-repositories

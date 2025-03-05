@@ -1,14 +1,14 @@
 (ns datascript.test.storage
   (:require
-    [clojure.edn :as edn]
-    [clojure.java.io :as io]
-    [clojure.test :as t :refer [is are deftest testing]]
-    [cognitect.transit :as transit]
-    [datascript.core :as d]
-    [datascript.storage :as storage]
-    [datascript.test.core :as tdc])
+   [clojure.edn :as edn]
+   [clojure.java.io :as io]
+   [clojure.test :as t :refer [is are deftest testing]]
+   [cognitect.transit :as transit]
+   [datascript-async.core :as d]
+   [datascript-async.storage :as storage]
+   [datascript.test.core :as tdc])
   (:import
-    [java.util.concurrent Executors]))
+   [java.util.concurrent Executors]))
 
 (defrecord Storage [*disk *reads *writes *deletes]
   storage/IStorage

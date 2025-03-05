@@ -1,25 +1,25 @@
-(ns ^:no-doc datascript.query
+(ns ^:no-doc datascript-async.query
   (:require
-    [#?(:cljs cljs.reader :clj clojure.edn) :as edn]
-    [clojure.set :as set]
-    [clojure.string :as str]
-    [clojure.walk :as walk]
-    [datascript.built-ins :as built-ins]
-    [datascript.db :as db]
-    [me.tonsky.persistent-sorted-set.arrays :as da]
-    [datascript.lru :as lru]
-    [datascript.impl.entity :as de]
-    [datascript.parser :as dp #?@(:cljs [:refer [BindColl BindIgnore BindScalar BindTuple Constant
-                                                 FindColl FindRel FindScalar FindTuple PlainSymbol
-                                                 RulesVar SrcVar Variable]])]
-    [datascript.pull-api :as dpa]
-    [datascript.util :as util])
+   [#?(:cljs cljs.reader :clj clojure.edn) :as edn]
+   [clojure.set :as set]
+   [clojure.string :as str]
+   [clojure.walk :as walk]
+   [datascript-async.built-ins :as built-ins]
+   [datascript-async.db :as db]
+   [me.tonsky.persistent-sorted-set.arrays :as da]
+   [datascript-async.lru :as lru]
+   [datascript-async.impl.entity :as de]
+   [datascript-async.parser :as dp #?@(:cljs [:refer [BindColl BindIgnore BindScalar BindTuple Constant
+                                                      FindColl FindRel FindScalar FindTuple PlainSymbol
+                                                      RulesVar SrcVar Variable]])]
+   [datascript-async.pull-api :as dpa]
+   [datascript-async.util :as util])
   #?(:clj
      (:import
-       [clojure.lang ILookup LazilyPersistentVector]
-       [datascript.parser BindColl BindIgnore BindScalar BindTuple
-        Constant FindColl FindRel FindScalar FindTuple PlainSymbol
-        RulesVar SrcVar Variable])))
+      [clojure.lang ILookup LazilyPersistentVector]
+      [datascript-async.parser BindColl BindIgnore BindScalar BindTuple
+       Constant FindColl FindRel FindScalar FindTuple PlainSymbol
+       RulesVar SrcVar Variable])))
 
 #?(:clj (set! *warn-on-reflection* true))
 
@@ -186,7 +186,7 @@
 ;;
 
 (defn parse-rules [rules]
-  (let [rules (if (string? rules) (edn/read-string rules) rules)] ;; for datascript.js interop
+  (let [rules (if (string? rules) (edn/read-string rules) rules)] ;; for datascript-async.js interop
     (dp/parse-rules rules) ;; validation
     (group-by ffirst rules)))
 

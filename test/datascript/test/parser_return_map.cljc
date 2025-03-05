@@ -1,10 +1,10 @@
 (ns datascript.test.parser-return-map
   (:require
-    [clojure.test :as t :refer [is are deftest testing]]
-    [datascript.core :as d]
-    [datascript.parser :as dp]
-    [datascript.db :as db]
-    [datascript.test.core :as tdc]))
+   [clojure.test :as t :refer [is are deftest testing]]
+   [datascript-async.core :as d]
+   [datascript-async.parser :as dp]
+   [datascript-async.db :as db]
+   [datascript.test.core :as tdc]))
 
 #?(:cljs
    (def Throwable

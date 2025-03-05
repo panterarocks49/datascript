@@ -1,9 +1,9 @@
 (ns datascript.test.pull-api
   (:require
-    [clojure.test :as t :refer [is are deftest testing]]
-    [datascript.core :as d]
-    [datascript.db :as db]
-    [datascript.test.core :as tdc]))
+   [clojure.test :as t :refer [is are deftest testing]]
+   [datascript-async.core :as d]
+   [datascript-async.db :as db]
+   [datascript.test.core :as tdc]))
 
 (def ^:private test-schema
   {:name   {:db/unique :db.unique/identity}

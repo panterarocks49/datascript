@@ -7,6 +7,6 @@ global.performance = {
        }
 }
 
-require("../target/datascript.js");
+require("../target/datascript-async.js");
 
 datascript.bench.datascript._main(...process.argv.slice(2));

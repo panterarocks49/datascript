@@ -1,11 +1,11 @@
-(ns ^:no-doc datascript.js
+(ns ^:no-doc datascript-async.js
   (:refer-clojure :exclude [filter])
   (:require
    [cljs.reader]
    [goog.object :as go]
    [clojure.walk :as walk]
-   [datascript.conn :as conn]
-   [datascript.core :as d]))
+   [datascript-async.conn :as conn]
+   [datascript-async.core :as d]))
 
 ;; Conversions
 

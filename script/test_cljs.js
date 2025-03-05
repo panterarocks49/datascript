@@ -24,7 +24,7 @@ if (fs.existsSync("./target/none")) {
   nodeGlobalRequire('./target/none/cljs_deps.js');
   goog.require('datascript.test');
 } else
-  nodeGlobalRequire('./target/datascript.js');
+  nodeGlobalRequire('./target/datascript-async.js');
 
 var res = datascript.test.test_cljs();
 

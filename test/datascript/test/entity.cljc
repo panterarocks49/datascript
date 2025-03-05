@@ -1,13 +1,13 @@
 (ns datascript.test.entity
   (:require
-    [clojure.edn :as edn]
-    [clojure.test :as t :refer [is are deftest testing]]
-    [datascript.core :as d]
-    [datascript.db :as db]
-    [datascript.test.core :as tdc])
+   [clojure.edn :as edn]
+   [clojure.test :as t :refer [is are deftest testing]]
+   [datascript-async.core :as d]
+   [datascript-async.db :as db]
+   [datascript.test.core :as tdc])
   #?(:clj
      (:import
-       [clojure.lang ExceptionInfo])))
+      [clojure.lang ExceptionInfo])))
 
 (t/use-fixtures :once tdc/no-namespace-maps)
 

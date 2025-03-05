@@ -1,11 +1,11 @@
 (ns datascript.test.tuples
   (:require
-    [clojure.test :as t :refer [is are deftest testing]]
-    [datascript.core :as d]
-    [datascript.test.core :as tdc])
+   [clojure.test :as t :refer [is are deftest testing]]
+   [datascript-async.core :as d]
+   [datascript.test.core :as tdc])
   #?(:clj
      (:import
-       [clojure.lang ExceptionInfo])))
+      [clojure.lang ExceptionInfo])))
 
 (deftest test-schema
   (let [db (d/empty-db

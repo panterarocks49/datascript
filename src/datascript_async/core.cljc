@@ -1,20 +1,20 @@
-(ns datascript.core
+(ns datascript-async.core
   (:refer-clojure :exclude [filter])
   (:require
    [#?(:cljs cljs.reader :clj clojure.edn) :as edn]
-   [datascript.conn :as conn]
-   [datascript.db :as db #?@(:cljs [:refer [Datom DB]])]
-   #?(:clj [datascript.pprint])
-   [datascript.pull-api :as dp]
-   [datascript.storage :as storage]
-   [datascript.query :as dq]
-   [datascript.impl.entity :as de]
-   [datascript.util :as util]
+   [datascript-async.conn :as conn]
+   [datascript-async.db :as db #?@(:cljs [:refer [Datom DB]])]
+   #?(:clj [datascript-async.pprint])
+   [datascript-async.pull-api :as dp]
+   [datascript-async.storage :as storage]
+   [datascript-async.query :as dq]
+   [datascript-async.impl.entity :as de]
+   [datascript-async.util :as util]
    [me.tonsky.persistent-sorted-set :as set])
   #?(:clj
      (:import
-      [datascript.db Datom DB]
-      [datascript.impl.entity Entity]
+      [datascript-async.db Datom DB]
+      [datascript-async.impl.entity Entity]
       [java.util UUID])))
 
 (def ^:const ^:no-doc tx0
@@ -153,10 +153,10 @@
    Usage:
    
    ```
-   (empty-db) ; => #datascript/DB {:schema {}, :datoms []}
+   (empty-db) ; => #datascript-async.db {:schema {}, :datoms []}
 
    (empty-db {:likes {:db/cardinality :db.cardinality/many}})
-   ; => #datascript/DB {:schema {:likes {:db/cardinality :db.cardinality/many}}
+   ; => #datascript-async.db {:schema {:likes {:db/cardinality :db.cardinality/many}}
    ;                    :datoms []}
    ```
    
@@ -387,7 +387,7 @@
 ;; Conn
 
 (def ^{:arglists '([conn])} conn?
-  "Returns `true` if this is a connection to a DataScript db, `false` otherwise."
+  "Returns `true` if this is a connection to a datascript-async.db, `false` otherwise."
   conn/conn?)
 
 (def ^{:arglists '([db])} conn-from-db
@@ -531,7 +531,7 @@
              (clojure.edn/read-string {:readers data-readers} \"...\")
              ```"}
   data-readers {'datascript/Datom db/datom-from-reader
-                'datascript/DB    db/db-from-reader})
+                'datascript-async.db    db/db-from-reader})
 
 #?(:cljs
    (doseq [[tag cb] data-readers] (edn/register-tag-parser! tag cb)))

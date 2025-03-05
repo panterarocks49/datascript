@@ -1,10 +1,10 @@
 (ns datascript.test.components
   (:require
-    [clojure.edn :as edn]
-    [clojure.test :as t :refer [is are deftest testing]]
-    [datascript.core :as d]
-    [datascript.db :as db]
-    [datascript.test.core :as tdc]))
+   [clojure.edn :as edn]
+   [clojure.test :as t :refer [is are deftest testing]]
+   [datascript-async.core :as d]
+   [datascript-async.db :as db]
+   [datascript.test.core :as tdc]))
 
 (t/use-fixtures :once tdc/no-namespace-maps)
 

@@ -1,8 +1,8 @@
-(ns ^:no-doc datascript.pull-parser
+(ns ^:no-doc datascript-async.pull-parser
   (:require
-    [datascript.built-ins :as built-ins]
-    [datascript.db :as db]
-    [datascript.util :as util]))
+   [datascript-async.built-ins :as built-ins]
+   [datascript-async.db :as db]
+   [datascript-async.util :as util]))
 
 (defrecord PullAttr [as default limit name pattern recursion-limit recursive? reverse? xform multival? ref? component?])
 

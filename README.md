@@ -117,7 +117,7 @@ Demo applications:
 For more examples, see [our acceptance test suite](test/datascript/test/).
 
 ```clj
-(require '[datascript.core :as d])
+(require '[datascript-async.core :as d])
 
 ;; Implicit join, multi-valued attribute
 

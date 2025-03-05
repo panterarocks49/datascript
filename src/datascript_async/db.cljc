@@ -1,17 +1,17 @@
-(ns ^:no-doc datascript.db
+(ns ^:no-doc datascript-async.db
   (:require
    #?(:cljs [goog.array :as garray])
    [promesa.core :as p]
    [clojure.walk]
    [clojure.data]
-   #?(:clj [datascript.inline :refer [update]])
-   [datascript.lru :as lru]
-   [datascript.util :as util]
+   #?(:clj [datascript-async.inline :refer [update]])
+   [datascript-async.lru :as lru]
+   [datascript-async.util :as util]
    #?(:clj [me.tonsky.persistent-sorted-set :as set]
       :cljs [me.tonsky.persistent-sorted-set-async :as set])
    [me.tonsky.persistent-sorted-set.arrays :as arrays])
   #?(:clj (:import clojure.lang.IFn$OOL))
-  #?(:cljs (:require-macros [datascript.db :refer [case-tree combine-cmp declare+ defn+ defcomp defrecord-updatable int-compare validate-attr validate-val]]))
+  #?(:cljs (:require-macros [datascript-async.db :refer [case-tree combine-cmp declare+ defn+ defcomp defrecord-updatable int-compare validate-attr validate-val]]))
   (:refer-clojure :exclude [seqable? #?(:clj update)]))
 
 #?(:clj (set! *warn-on-reflection* true))
@@ -209,23 +209,23 @@
        IIndexed
        (-nth [this i] (nth-datom this i))
        (-nth [this i not-found] (nth-datom this i not-found))
-        
+       
        IAssociative
        (-assoc [d k v] (assoc-datom d k v))
 
        IPrintWithWriter
        (-pr-writer [d writer opts]
-         (pr-sequential-writer writer pr-writer
-           "#datascript/Datom [" " " "]"
-           opts [(.-e d) (.-a d) (.-v d) (datom-tx d) (datom-added d)]))]
+                   (pr-sequential-writer writer pr-writer
+                                         "#datascript-async/Datom [" " " "]"
+                                         opts [(.-e d) (.-a d) (.-v d) (datom-tx d) (datom-added d)]))]
       :clj
       [Object
        (hashCode [d]
-         (if (zero? _hash)
-           (let [h (int (hash-datom d))]
-             (set! _hash h)
-             h)
-           _hash))
+                 (if (zero? _hash)
+                   (let [h (int (hash-datom d))]
+                     (set! _hash h)
+                     h)
+                   _hash))
        (toString [d] (pr-str d))
 
        clojure.lang.IHashEq
@@ -239,7 +239,7 @@
        (empty [d] (throw (UnsupportedOperationException. "empty is not supported on Datom")))
        (count [d] 5)
        (cons [d [k v]] (assoc-datom d k v))
-        
+       
        clojure.lang.Indexed
        (nth [this i]           (nth-datom this i))
        (nth [this i not-found] (nth-datom this i not-found))
@@ -253,7 +253,7 @@
        (containsKey [e k] (#{:e :a :v :tx :added} k))
        (assoc [d k v] (assoc-datom d k v))]))
 
-#?(:cljs (goog/exportSymbol "datascript.db.Datom" Datom))
+#?(:cljs (goog/exportSymbol "datascript-async.db.Datom" Datom))
 
 (defn ^Datom datom
   ([e a v] (Datom. e a v tx0 0 0))
@@ -326,7 +326,7 @@
     :v     (datom (.-e d) (.-a d) v       (datom-tx d) (datom-added d))
     :tx    (datom (.-e d) (.-a d) (.-v d) v            (datom-added d))
     :added (datom (.-e d) (.-a d) (.-v d) (datom-tx d) v)
-    (throw (IllegalArgumentException. (str "invalid key for #datascript/Datom: " k)))))
+    (throw (IllegalArgumentException. (str "invalid key for #datascript-async/Datom: " k)))))
 
 ;; printing and reading
 ;; #datomic/DB {:schema <map>, :datoms <vector of [e a v tx]>}
@@ -336,7 +336,7 @@
 
 #?(:clj
    (defmethod print-method Datom [^Datom d, ^java.io.Writer w]
-     (.write w (str "#datascript/Datom "))
+     (.write w (str "#datascript-async/Datom "))
      (binding [*out* w]
        (pr [(.-e d) (.-a d) (.-v d) (datom-tx d) (datom-added d)]))))
 
@@ -683,7 +683,7 @@
                                                     (with-meta (meta db))))
        IPrintWithWriter     (-pr-writer [db w opts] (pr-db db w opts))
        IEditableCollection  (-as-transient [db] (db-transient db))
-       ITransientCollection (-conj! [db key] (throw (ex-info "datascript.DB/conj! is not supported" {})))
+       ITransientCollection (-conj! [db key] (throw (ex-info "datascript-async.db/conj! is not supported" {})))
        (-persistent! [db] (db-persistent! db))]
 
       :clj
@@ -702,7 +702,7 @@
                                (with-meta (meta db))))
        (asTransient [db] (db-transient db))
        clojure.lang.ITransientCollection
-       (conj [db key] (throw (ex-info "datascript.DB/conj! is not supported" {})))
+       (conj [db key] (throw (ex-info "datascript-async.db/conj! is not supported" {})))
        (persistent [db] (db-persistent! db))])
 
   IDB
@@ -783,7 +783,7 @@
                            (resolve-datom db nil attr end nil emax txmax)))
   
   clojure.data/EqualityPartition
-  (equality-partition [x] :datascript/db)
+  (equality-partition [x] :datascript-async/db)
 
   clojure.data/Diff
   (diff-similar [a b]
@@ -793,9 +793,9 @@
   #?(:clj
      (or
       (and x
-           (instance? datascript.db.ISearch x)
-           (instance? datascript.db.IIndexAccess x)
-           (instance? datascript.db.IDB x))
+           (instance? datascript_async.db.ISearch x)
+           (instance? datascript_async.db.IIndexAccess x)
+           (instance? datascript_async.db.IDB x))
       (and (satisfies? ISearch x)
            (satisfies? IIndexAccess x)
            (satisfies? IDB x)))
@@ -1037,20 +1037,20 @@
 
 #?(:cljs
    (defn+ pr-db [db w opts]
-     (-write w "#datascript/DB {")
+     (-write w "#datascript-async/DB {")
      (-write w ":schema ")
      (pr-writer (-schema db) w opts)
      (-write w ", :datoms ")
      (pr-sequential-writer w
-       (fn [d w opts]
-         (pr-sequential-writer w pr-writer "[" " " "]" opts [(.-e d) (.-a d) (.-v d) (datom-tx d)]))
-       "[" " " "]" opts (-datoms db :eavt nil nil nil nil))
+                           (fn [d w opts]
+                             (pr-sequential-writer w pr-writer "[" " " "]" opts [(.-e d) (.-a d) (.-v d) (datom-tx d)]))
+                           "[" " " "]" opts (-datoms db :eavt nil nil nil nil))
      (-write w "}")))
 
 #?(:clj
    (do
      (defn pr-db [db, ^java.io.Writer w]
-       (.write w (str "#datascript/DB {"))
+       (.write w (str "#datascript-async/DB {"))
        (.write w ":schema ")
        (binding [*out* w]
          (pr (-schema db))
@@ -1308,17 +1308,17 @@
    (defn- ^Boolean tx-id?
      [e]
      (or (identical? :db/current-tx e)
-       (.equals ":db/current-tx" e) ;; for datascript.js interop
-       (.equals "datomic.tx" e)
-       (.equals "datascript.tx" e)))
+         (.equals ":db/current-tx" e) ;; for datascript-async.js interop
+         (.equals "datomic.tx" e)
+         (.equals "datascript.tx" e)))
 
    :cljs
    (defn- ^boolean tx-id?
      [e]
      (or (= e :db/current-tx)
-       (= e ":db/current-tx") ;; for datascript.js interop
-       (= e "datomic.tx")
-       (= e "datascript.tx"))))
+         (= e ":db/current-tx") ;; for datascript-async.js interop
+         (= e "datomic.tx")
+         (= e "datascript.tx"))))
 
 (defn- #?@(:clj  [^Boolean tempid?]
            :cljs [^boolean tempid?])

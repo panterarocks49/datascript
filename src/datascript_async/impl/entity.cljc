@@ -1,7 +1,7 @@
-(ns ^:no-doc datascript.impl.entity
+(ns ^:no-doc datascript-async.impl.entity
   (:refer-clojure :exclude [keys get])
   (:require [#?(:cljs cljs.core :clj clojure.core) :as c]
-    [datascript.db :as db]))
+            [datascript-async.db :as db]))
 
 (declare entity ->Entity equiv-entity lookup-entity touch hash-entity)
 
@@ -222,4 +222,4 @@
         (vreset! (.-touched e) true)))
     e))
 
-#?(:cljs (goog/exportSymbol "datascript.impl.entity.Entity" Entity))
+#?(:cljs (goog/exportSymbol "datascript-async.impl.entity.Entity" Entity))

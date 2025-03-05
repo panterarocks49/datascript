@@ -14,7 +14,7 @@ function nodeGlobalRequire(file) {
   vm.runInThisContext.call(global, fs.readFileSync(file), file);
 }
 
-nodeGlobalRequire('./release-js/datascript.js');
+nodeGlobalRequire('./release-js/datascript-async.js');
 
 var tests_js = require('../test/js/tests.js');
 var res = tests_js.test_all();

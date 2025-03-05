@@ -1,12 +1,12 @@
 (ns datascript.test.query-not
   (:require
-    [clojure.test :as t :refer [is are deftest testing]]
-    [datascript.core :as d]
-    [datascript.db :as db]
-    [datascript.test.core :as tdc])
+   [clojure.test :as t :refer [is are deftest testing]]
+   [datascript-async.core :as d]
+   [datascript-async.db :as db]
+   [datascript.test.core :as tdc])
   #?(:clj
      (:import
-       [clojure.lang ExceptionInfo])))
+      [clojure.lang ExceptionInfo])))
 
 (def *test-db
   (delay

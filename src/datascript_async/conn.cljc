@@ -1,12 +1,12 @@
-(ns datascript.conn
+(ns datascript-async.conn
   (:require
-   [datascript.db :as db #?@(:cljs [:refer [DB]])]
-   [datascript.storage :as storage]
+   [datascript-async.db :as db #?@(:cljs [:refer [DB]])]
+   [datascript-async.storage :as storage]
    [extend-clj.core :as extend]
    [me.tonsky.persistent-sorted-set :as set])
   #?(:clj
      (:import
-      [datascript.db DB])))
+      [datascript-async.db DB])))
 
 (extend/deftype-atom Conn [atom]
   (deref-impl [this]

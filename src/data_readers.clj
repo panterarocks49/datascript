@@ -1,2 +1,2 @@
-{datascript/Datom datascript.db/datom-from-reader
- datascript/DB    datascript.db/db-from-reader}
+{datascript-async/Datom datascript-async.db/datom-from-reader
+ datascript-async/DB    datascript-async.db/db-from-reader}

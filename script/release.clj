@@ -88,7 +88,7 @@
 (def GITHUB_BASIC (System/getenv "GITHUB_BASIC"))
 
 (defn github-release []
-  (sh "cp" "release-js/datascript.js" (str "release-js/datascript-" new-v ".min.js"))
+  (sh "cp" "release-js/datascript-async.js" (str "release-js/datascript-" new-v ".min.js"))
   (let [re        (as-> new-v %
                     (str/replace % "." "\\.")
                     (str "# " % " .*")
