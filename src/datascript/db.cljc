@@ -588,8 +588,6 @@
 
 (declare+ ^number hash-db [db])
 
-(declare+ ^number hash-fdb [db])
-
 (declare+ ^boolean equiv-db [db other])
 
 (declare+ restore-db [keys])
@@ -794,84 +792,22 @@
 (defn db? [x]
   #?(:clj
      (or
-       (and x
-         (instance? datascript.db.ISearch x)
-         (instance? datascript.db.IIndexAccess x)
-         (instance? datascript.db.IDB x))
-       (and (satisfies? ISearch x)
-         (satisfies? IIndexAccess x)
-         (satisfies? IDB x)))
+      (and x
+           (instance? datascript.db.ISearch x)
+           (instance? datascript.db.IIndexAccess x)
+           (instance? datascript.db.IDB x))
+      (and (satisfies? ISearch x)
+           (satisfies? IIndexAccess x)
+           (satisfies? IDB x)))
      :cljs
      (and (satisfies? ISearch x)
-       (satisfies? IIndexAccess x)
-       (satisfies? IDB x))))
+          (satisfies? IIndexAccess x)
+          (satisfies? IDB x))))
 
 ;; ----------------------------------------------------------------------------
-(defrecord-updatable FilteredDB [unfiltered-db pred hash]
-  #?@(:cljs
-      [IHash                (-hash  [db]        (hash-fdb db))
-       IEquiv               (-equiv [db other]  (equiv-db db other))
-       ICounted             (-count [db]        (count (-datoms db :eavt nil nil nil nil)))
-       IPrintWithWriter     (-pr-writer [db w opts] (pr-db db w opts))
-
-       IEmptyableCollection (-empty [_]         (throw (js/Error. "-empty is not supported on FilteredDB")))
-
-       ILookup              (-lookup ([_ _]     (throw (js/Error. "-lookup is not supported on FilteredDB")))
-                              ([_ _ _]   (throw (js/Error. "-lookup is not supported on FilteredDB"))))
-
-
-       IAssociative         (-contains-key? [_ _] (throw (js/Error. "-contains-key? is not supported on FilteredDB")))
-       (-assoc [_ _ _]       (throw (js/Error. "-assoc is not supported on FilteredDB")))]
-
-      :clj
-      [Object               (hashCode [db]      (hash-fdb db))
-
-       clojure.lang.IHashEq (hasheq [db]        (hash-fdb db))
-
-       clojure.lang.IPersistentCollection
-       (count [db]         (count (-datoms db :eavt nil nil nil nil)))
-       (equiv [db o]       (equiv-db db o))
-       (cons [db [k v]]    (throw (UnsupportedOperationException. "cons is not supported on FilteredDB")))
-       (empty [db]         (throw (UnsupportedOperationException. "empty is not supported on FilteredDB")))
-
-       clojure.lang.ILookup (valAt [db k]       (throw (UnsupportedOperationException. "valAt/2 is not supported on FilteredDB")))
-       (valAt [db k nf]    (throw (UnsupportedOperationException. "valAt/3 is not supported on FilteredDB")))
-       clojure.lang.IKeywordLookup (getLookupThunk [db k]
-                                     (throw (UnsupportedOperationException. "getLookupThunk is not supported on FilteredDB")))
-
-       clojure.lang.Associative
-       (containsKey [e k]  (throw (UnsupportedOperationException. "containsKey is not supported on FilteredDB")))
-       (entryAt [db k]     (throw (UnsupportedOperationException. "entryAt is not supported on FilteredDB")))
-       (assoc [db k v]     (throw (UnsupportedOperationException. "assoc is not supported on FilteredDB")))])
-
-  IDB
-  (-schema [db]
-    (-schema (.-unfiltered-db db)))
-
-  (-attrs-by [db property]
-    (-attrs-by (.-unfiltered-db db) property))
-
-  ISearch
-  (-search [db pattern]
-    (filter (.-pred db) (-search (.-unfiltered-db db) pattern)))
-
-  IIndexAccess
-  (-datoms [db index c0 c1 c2 c3]
-    (filter (.-pred db) (-datoms (.-unfiltered-db db) index c0 c1 c2 c3)))
-
-  (-seek-datoms [db index c0 c1 c2 c3]
-    (filter (.-pred db) (-seek-datoms (.-unfiltered-db db) index c0 c1 c2 c3)))
-
-  (-rseek-datoms [db index c0 c1 c2 c3]
-    (filter (.-pred db) (-rseek-datoms (.-unfiltered-db db) index c0 c1 c2 c3)))
-
-  (-index-range [db attr start end]
-    (filter (.-pred db) (-index-range (.-unfiltered-db db) attr start end))))
-
+;; FilteredDB
 (defn unfiltered-db ^DB [db]
-  (if (instance? FilteredDB db)
-    (.-unfiltered-db ^FilteredDB db)
-    db))
+  db)
 
 ;; ----------------------------------------------------------------------------
 
@@ -1091,22 +1027,13 @@
   (let [h @(.-hash db)]
     (if (zero? h)
       (reset! (.-hash db) (combine-hashes (hash (.-schema db))
-                            (hash (.-eavt db))))
-      h)))
-
-(defn+ ^:private ^number hash-fdb [^FilteredDB db]
-  (let [h @(.-hash db)
-        datoms (or (-datoms db :eavt nil nil nil nil) #{})]
-    (if (zero? h)
-      (let [datoms (or (-datoms db :eavt nil nil nil nil) #{})]
-        (reset! (.-hash db) (combine-hashes (hash (-schema db))
-                              (hash-unordered-coll datoms))))
+                                          (hash (.-eavt db))))
       h)))
 
 (defn+ ^:private ^boolean equiv-db [db other]
-  (and (or (instance? DB other) (instance? FilteredDB other))
-    (= (-schema db) (-schema other))
-    (equiv-db-index (-datoms db :eavt nil nil nil nil) (-datoms other :eavt nil nil nil nil))))
+  (and (instance? DB other)
+       (= (-schema db) (-schema other))
+       (equiv-db-index (-datoms db :eavt nil nil nil nil) (-datoms other :eavt nil nil nil nil))))
 
 #?(:cljs
    (defn+ pr-db [db w opts]
@@ -1131,8 +1058,7 @@
          (apply pr (map (fn [^Datom d] [(.-e d) (.-a d) (.-v d) (datom-tx d)]) (-datoms db :eavt nil nil nil nil))))
        (.write w "]}"))
 
-     (defmethod print-method DB [db w] (pr-db db w))
-     (defmethod print-method FilteredDB [db w] (pr-db db w))))
+     (defmethod print-method DB [db w] (pr-db db w))))
 
 (defn db-from-reader [{:keys [schema datoms]}]
   (init-db (map (fn [[e a v tx]] (datom e a v tx)) datoms) schema {}))

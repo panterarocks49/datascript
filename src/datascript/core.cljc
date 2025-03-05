@@ -1,24 +1,23 @@
 (ns datascript.core
   (:refer-clojure :exclude [filter])
   (:require
-    [#?(:cljs cljs.reader :clj clojure.edn) :as edn]
-    [datascript.conn :as conn]
-    [datascript.db :as db #?@(:cljs [:refer [Datom DB FilteredDB]])]
-    #?(:clj [datascript.pprint])
-    [datascript.pull-api :as dp]
-    [datascript.serialize :as ds]
-    [datascript.storage :as storage]
-    [datascript.query :as dq]
-    [datascript.impl.entity :as de]
-    [datascript.util :as util]
-    [me.tonsky.persistent-sorted-set :as set])
+   [#?(:cljs cljs.reader :clj clojure.edn) :as edn]
+   [datascript.conn :as conn]
+   [datascript.db :as db #?@(:cljs [:refer [Datom DB]])]
+   #?(:clj [datascript.pprint])
+   [datascript.pull-api :as dp]
+   [datascript.storage :as storage]
+   [datascript.query :as dq]
+   [datascript.impl.entity :as de]
+   [datascript.util :as util]
+   [me.tonsky.persistent-sorted-set :as set])
   #?(:clj
      (:import
-       [datascript.db Datom DB FilteredDB]
-       [datascript.impl.entity Entity]
-       [java.util UUID])))
+      [datascript.db Datom DB]
+      [datascript.impl.entity Entity]
+      [java.util UUID])))
 
-(def ^:const ^:no-doc tx0 
+(def ^:const ^:no-doc tx0
   db/tx0)
 
 
@@ -204,64 +203,11 @@
   ([datoms schema opts]
    (db/init-db datoms schema (storage/maybe-adapt-storage opts))))
 
-(def ^{:arglists '([db] [db opts])
-       :doc "Converts db into a data structure (not string!) that can be fed to serializer
-             of your choice (e.g. `js/JSON.stringify` in CLJS, `cheshire.core/generate-string`
-             or `jsonista.core/write-value-as-string` in CLJ).
-
-             On JVM, `serializable` holds a global lock that prevents any two serializations
-             to run in parallel (an implementation constraint, be aware).
-
-             Options:
-
-             `:freeze-fn` Non-primitive values will be serialized using this. Optional.
-             `pr-str` by default."}
-  serializable ds/serializable)
-
-(def ^{:tag DB
-       :arglists '([serializable] [serializable opts])
-       :doc "Creates db from a data structure (not string!) produced by serializable.
-
-             Opts:
-
-             `:thaw-fn` Non-primitive values will be deserialized using this.
-             Must match :freeze-fn from serializable. Optional. `clojure.edn/read-string`
-             by default."}
-  from-serializable ds/from-serializable)
-
-
 ; Schema
 
 (def ^{:arglists '([db])
        :doc "Returns a schema of a database."}
   schema db/-schema)
-
-
-; Filtered db
-
-(defn is-filtered
-  "Returns `true` if this database was filtered using [[filter]], `false` otherwise."
-  [x]
-  (instance? FilteredDB x))
-
-(defn filter
-  "Returns a view over database that has same interface but only includes datoms for which the `(pred db datom)` is true. Can be applied multiple times.
-   
-   Filtered DB gotchas:
-
-   - All operations on filtered database are proxied to original DB, then filter pred is applied.
-   - Not cached. You pay filter penalty every time.
-   - Supports entities, pull, queries, index access.
-   - Does not support [[with]] and [[db-with]]."
-  [db pred]
-  {:pre [(db/db? db)]}
-  (if (is-filtered db)
-    (let [^FilteredDB fdb db
-          orig-pred (.-pred fdb)
-          orig-db   (.-unfiltered-db fdb)]
-      (FilteredDB. orig-db #(and (orig-pred %) (pred orig-db %)) (atom 0)))
-    (FilteredDB. db #(pred db %) (atom 0))))
-
 
 ; Changing DB
 

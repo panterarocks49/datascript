@@ -1,12 +1,12 @@
 (ns datascript.conn
   (:require
-   [datascript.db :as db #?@(:cljs [:refer [DB FilteredDB]])]
+   [datascript.db :as db #?@(:cljs [:refer [DB]])]
    [datascript.storage :as storage]
    [extend-clj.core :as extend]
    [me.tonsky.persistent-sorted-set :as set])
   #?(:clj
      (:import
-      [datascript.db DB FilteredDB])))
+      [datascript.db DB])))
 
 (extend/deftype-atom Conn [atom]
   (deref-impl [this]
@@ -24,9 +24,7 @@
   ([db tx-data] (with db tx-data nil))
   ([db tx-data tx-meta]
    {:pre [(db/db? db)]}
-   (if (instance? FilteredDB db)
-     (throw (ex-info "Filtered DB cannot be modified" {:error :transaction/filtered}))
-     (db/transact-tx-data (db/->TxReport db db [] {} tx-meta) tx-data))))
+   (db/transact-tx-data (db/->TxReport db db [] {} tx-meta) tx-data)))
 
 (defn ^DB db-with
   "Applies transaction to an immutable db value, returning new immutable db value. Same as `(:db-after (with db tx-data))`."
