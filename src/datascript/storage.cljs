@@ -32,16 +32,18 @@
   (store [_ node]
     (let [addr (str (random-uuid))
           _    (util/log "store" addr)
-          data (cond-> {:keys (.-keys node)}
+          data (cond-> {:keys (vec (.-keys node))}
                  (instance? set/Node node)
-                 (assoc :addresses (.-_addresses node)))]
+                 (assoc :addresses (vec (.-_addresses node))))]
       (vswap! store-buffer conj! [addr data])
       addr))
   (accessed [_ _address]
     nil)
   (restore [_ addr]
     (util/log "restore" addr)
-    (p/let [{:keys [keys addresses]} (-restore storage addr)]
+    (p/let [{:keys [keys addresses]} (-restore storage addr)
+            keys (into-array keys)
+            addresses (into-array addresses)]
       (if addresses
         (set/Node. keys (arrays/make-array (arrays/alength addresses)) addresses)
         (set/Leaf. keys)))))

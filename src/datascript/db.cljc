@@ -1043,7 +1043,7 @@
                             datoms)
         #_#_
         max-eid     (init-max-eid rschema eavt avet)
-        max-tx      (transduce (map (fn [^Datom d] (datom-tx d))) max tx0 eavt)]
+        max-tx      tx0 #_(transduce (map (fn [^Datom d] (datom-tx d))) max tx0 eavt)]
     (map->DB
      {:schema        schema
       :rschema       rschema
