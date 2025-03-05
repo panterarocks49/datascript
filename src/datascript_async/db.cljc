@@ -992,19 +992,19 @@
       :pull-attrs    (lru/cache 100)
       :hash          (atom 0)})))
 
-(defn+ ^DB restore-db [{:keys [schema eavt aevt avet max-eid max-tx] :as keys}]
+(defn+ restore-db ^DB [{:keys [schema eavt aevt avet max-eid max-tx] :as keys}]
   (map->DB
-    {:schema        schema
-     :rschema       (or (:rschema keys)
-                      (rschema (merge implicit-schema schema)))
-     :eavt          eavt
-     :aevt          aevt
-     :avet          avet
-     :max-eid       (or max-eid e0)
-     :max-tx        (or max-tx tx0)
-     :pull-patterns (lru/cache 100)
-     :pull-attrs    (lru/cache 100)
-     :hash          (atom 0)}))
+   {:schema        schema
+    :rschema       (or (:rschema keys)
+                       (rschema (merge implicit-schema schema)))
+    :eavt          eavt
+    :aevt          aevt
+    :avet          avet
+    :max-eid       (or max-eid e0)
+    :max-tx        (or max-tx tx0)
+    :pull-patterns (lru/cache 100)
+    :pull-attrs    (lru/cache 100)
+    :hash          (atom 0)}))
 
 (defn with-schema [db schema]
   {:pre [(db? db) (or (nil? schema) (map? schema))]}

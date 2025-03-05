@@ -151,48 +151,49 @@
   (loop [pattern pattern
          ^PullPattern result (map->PullPattern {:attrs [] :reverse-attrs [] :wildcard? nil})]
     (util/cond+
-      (empty? pattern)
-      (let [attrs       (.-attrs result)
-            db-id?      (fn [^PullAttr attr] (#{:db/id ":db/id"} (.-name attr)))
-            key-fn      (fn [^PullAttr attr]
-                          (let [name (:name attr)]
-                            (cond
-                              (keyword? name) name
-                              (= ":" (subs name 0 1)) (keyword (subs name 1))
-                              :eles (keyword name))))
-            attrs       (if (and
-                              (.-wildcard? result)
-                              (not (some db-id? (.-attrs result))))
-                          (conj attrs default-db-id-attr)
-                          attrs)
-            attrs       (list* (sort-by key-fn attrs))
-            datom-attrs (remove db-id? attrs)
-            first-attr  (first datom-attrs)
-            last-attr   (last datom-attrs)]
-        (map->PullPattern
-          {:attrs         attrs
-           :first-attr    first-attr
-           :last-attr     last-attr
-           :reverse-attrs (list* (sort-by key-fn (.-reverse-attrs result)))
-           :wildcard?     (.-wildcard? result)}))
+     (empty? pattern)
+     (let [^PullPattern result result
+           attrs       (.-attrs result)
+           db-id?      (fn [^PullAttr attr] (#{:db/id ":db/id"} (.-name attr)))
+           key-fn      (fn [^PullAttr attr]
+                         (let [name (:name attr)]
+                           (cond
+                             (keyword? name) name
+                             (= ":" (subs name 0 1)) (keyword (subs name 1))
+                             :else (keyword name))))
+           attrs       (if (and
+                            (.-wildcard? result)
+                            (not (some db-id? (.-attrs result))))
+                         (conj attrs default-db-id-attr)
+                         attrs)
+           attrs       (list* (sort-by key-fn attrs))
+           datom-attrs (remove db-id? attrs)
+           first-attr  (first datom-attrs)
+           last-attr   (last datom-attrs)]
+       (map->PullPattern
+        {:attrs         attrs
+         :first-attr    first-attr
+         :last-attr     last-attr
+         :reverse-attrs (list* (sort-by key-fn (.-reverse-attrs result)))
+         :wildcard?     (.-wildcard? result)}))
 
-      :let [attr-spec (first pattern)]
+     :let [attr-spec (first pattern)]
 
-      (or (= '* attr-spec) (= "*" attr-spec) (= :* attr-spec))
-      (recur (next pattern) (assoc result :wildcard? true))
+     (or (= '* attr-spec) (= "*" attr-spec) (= :* attr-spec))
+     (recur (next pattern) (assoc result :wildcard? true))
 
-      (map? attr-spec)
-      (let [result' (reduce-kv
-                      (fn [result attr-spec pattern]
-                        (conj-attr result (parse-map-spec db attr-spec pattern)))
-                      result
-                      attr-spec)]
-        (recur (next pattern) result'))
-        
-      :let [pull-attr (parse-attr-spec db attr-spec)]
+     (map? attr-spec)
+     (let [result' (reduce-kv
+                    (fn [result attr-spec pattern]
+                      (conj-attr result (parse-map-spec db attr-spec pattern)))
+                    result
+                    attr-spec)]
+       (recur (next pattern) result'))
+     
+     :let [pull-attr (parse-attr-spec db attr-spec)]
 
-      (nil? pull-attr)
-      (check false "attr-name | attr-expr | map-spec | *" attr-spec)
-      
-      :else
-      (recur (next pattern) (conj-attr result pull-attr)))))
+     (nil? pull-attr)
+     (check false "attr-name | attr-expr | map-spec | *" attr-spec)
+     
+     :else
+     (recur (next pattern) (conj-attr result pull-attr)))))

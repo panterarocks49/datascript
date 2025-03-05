@@ -27,12 +27,15 @@
 (def ^:private tail-addr
   "tail")
 
+(defn serializable-datom [^Datom d]
+  [(.-e d) (.-a d) (.-v d) (.-tx d)])
+
 (deftype StorageAdapter [storage ^:mutable store-buffer]
   set.storage/IStorage
   (store [_ node]
     (let [addr (str (random-uuid))
           _    (util/log "store" addr)
-          data (cond-> {:keys (vec (.-keys node))}
+          data (cond-> {:keys (mapv serializable-datom (.-keys node))}
                  (instance? set/Node node)
                  (assoc :addresses (vec (.-_addresses node))))]
       (vswap! store-buffer conj! [addr data])
@@ -42,7 +45,7 @@
   (restore [_ addr]
     (util/log "restore" addr)
     (p/let [{:keys [keys addresses]} (-restore storage addr)
-            keys (into-array keys)
+            keys (into-array (map (fn [[e a v tx]] (db/datom e a v tx)) keys))
             addresses (into-array addresses)]
       (if addresses
         (set/Node. keys (arrays/make-array (arrays/alength addresses)) addresses)
@@ -70,7 +73,7 @@
 (defn- remember-db [db]
   (.push stored-dbs (js/WeakRef. db)))
 
-(defn store-impl! [db adapter force?]
+(defn store-impl! [db ^StorageAdapter adapter force?]
   (remember-db db)
   (let [store-buffer (volatile! (transient []))]
     (set! (.-store-buffer adapter) store-buffer)
@@ -152,10 +155,10 @@
 
 (defn- addresses-impl [db visit-fn]
   {:pre [(db/db? db)]}
-  (p/do
-    (set/-walk-addresses (:eavt db) visit-fn)
-    (set/-walk-addresses (:aevt db) visit-fn)
-    (set/-walk-addresses (:avet db) visit-fn)))
+  (p/do!
+   (set/-walk-addresses (:eavt db) visit-fn)
+   (set/-walk-addresses (:aevt db) visit-fn)
+   (set/-walk-addresses (:avet db) visit-fn)))
 
 (defn addresses [dbs]
   (let [*set     (volatile! (transient #{}))
