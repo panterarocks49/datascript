@@ -3,16 +3,20 @@
    [promesa.core :as p]
    [datascript-async.db :as db]
    [datascript-async.util :as util]
-   [me.tonsky.persistent-sorted-set.arrays :as arrays]
    [me.tonsky.persistent-sorted-set.storage :as set.storage]
    [me.tonsky.persistent-sorted-set-async :as set]))
 
 (defprotocol IStorage
   :extend-via-metadata true
+  (-gen-addr [_ node]
+    "Generate an address for a given node/leaf. Preferably a string but can be any object")
+  (-accessed [_ addr]
+    "Called when an address is accessed.")
   (-store [_ addr+data-seq]
     "Gives you a sequence of `[addr data]` pairs to serialize and store.
-     `addr`s are 64 bit integers.
-     `data`s are clojure-serializable data structure (maps, keywords, lists, integers etc)")
+     `addr`s are the return of -gen-addr.
+     `data`s are a node/leaf of the set
+     the exception to this is root and tail addrs, those will be clojure serializable structures")
   (-restore [_ addr]
     "Read back and deserialize data stored under single `addr`")
   (-list-addresses [_]
@@ -33,23 +37,15 @@
 (deftype StorageAdapter [storage ^:mutable store-buffer]
   set.storage/IStorage
   (store [_ node]
-    (let [addr (str (random-uuid))
-          _    (util/log "store" addr)
-          data (cond-> {:keys (mapv serializable-datom (.-keys node))}
-                 (instance? set/Node node)
-                 (assoc :addresses (vec (.-_addresses node))))]
-      (vswap! store-buffer conj! [addr data])
+    (let [addr (-gen-addr storage node)]
+      (util/log "store" addr)
+      (vswap! store-buffer conj! [addr node])
       addr))
-  (accessed [_ _address]
-    nil)
+  (accessed [_ addr]
+    (-accessed storage addr))
   (restore [_ addr]
     (util/log "restore" addr)
-    (p/let [{:keys [keys addresses]} (-restore storage addr)
-            keys (into-array (map (fn [[e a v tx]] (db/datom e a v tx)) keys))
-            addresses (into-array addresses)]
-      (if addresses
-        (set/Node. keys (arrays/make-array (arrays/alength addresses)) addresses)
-        (set/Leaf. keys)))))
+    (-restore storage addr)))
 
 (defn make-storage-adapter [storage]
   (StorageAdapter. storage nil))
