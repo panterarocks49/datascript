@@ -759,18 +759,22 @@
   IIndexAccess
   (-datoms [db index c0 c1 c2 c3]
            (validate-indexed db index c0 c1 c2 c3)
-           (set/slice (get db index)
-                      (components->pattern db index c0 c1 c2 c3 e0 tx0)
-                      (components->pattern db index c0 c1 c2 c3 emax txmax)))
+           (p/let [key-from (components->pattern db index c0 c1 c2 c3 e0 tx0)
+                   key-to   (components->pattern db index c0 c1 c2 c3 emax txmax)]
+             (set/slice (get db index) key-from key-to)))
 
   (-seek-datoms [db index c0 c1 c2 c3]
                 (validate-indexed db index c0 c1 c2 c3)
+                (throw (ex-info "not supported yet" {}))
+                #_
                 (set/slice (get db index)
                            (components->pattern db index c0 c1 c2 c3 e0 tx0)
                            (datom emax nil nil txmax)))
 
   (-rseek-datoms [db index c0 c1 c2 c3]
                  (validate-indexed db index c0 c1 c2 c3)
+                 (throw (ex-info "not supported yet" {}))
+                 #_
                  (set/rslice (get db index)
                              (components->pattern db index c0 c1 c2 c3 emax txmax)
                              (datom e0 nil nil tx0)))
@@ -778,10 +782,12 @@
   (-index-range [db attr start end]
                 (validate-indexed db :avet attr nil nil nil)
                 (validate-attr attr (list '-index-range 'db attr start end))
+                (throw (ex-info "not supported yet" {}))
+                #_
                 (set/slice (.-avet db)
                            (resolve-datom db nil attr start nil e0 tx0)
                            (resolve-datom db nil attr end nil emax txmax)))
-  
+
   clojure.data/EqualityPartition
   (equality-partition [x] :datascript-async/db)
 
@@ -970,7 +976,7 @@
         avet        (set/from-sorted-array cmp-datoms-avet avet-arr (arrays/alength avet-arr) opts)
         ;; TODO: do this better
         refs        (:db.type/ref rschema)
-        max-eid     (reduce (fn [eid d]
+        max-eid     (reduce (fn [eid ^Datom d]
                               (let [a (.-a d)]
                                 (if (refs a)
                                   (max eid (.-e d) (.-v d))
@@ -1072,13 +1078,17 @@
 (defn+ resolve-datom [db e a v t default-e default-tx]
   (when (some? a)
     (validate-attr a (list 'resolve-datom 'db e a v t)))
-  (datom
-    (if (some? e) (entid-strict db e) default-e)
-    a
-    (if (and (some? v) (ref? db a))
-      (entid-strict db v)
-      v)
-    (if (some? t) (entid-strict db t) default-tx)))
+  (p/let [e (if (some? e)
+              (entid-strict db e)
+              default-e)
+          v (if (and (some? v) (ref? db a))
+              (entid-strict db v)
+              v)
+          ;; TODO: why do entid on t?
+          t (if (some? t)
+              (entid-strict db t)
+              default-tx)]
+    (datom e a v t)))
 
 (defn+ components->pattern [db index c0 c1 c2 c3 default-e default-tx]
   (case index
@@ -1089,7 +1099,7 @@
 (defn find-datom [db index c0 c1 c2 c3]
   (validate-indexed db index c0 c1 c2 c3)
   (let [set     (get db index)
-        cmp     #?(:clj (.comparator ^clojure.lang.Sorted set) :cljs (.-comparator set))
+        cmp     #?(:clj (.comparator ^clojure.lang.Sorted set) :cljs (.-comparator ^set/BTSet set))
         from    (components->pattern db index c0 c1 c2 c3 e0 tx0)
         to      (components->pattern db index c0 c1 c2 c3 emax txmax)
         datom   (some-> set seq (set/seek from) first)]
@@ -1132,13 +1142,13 @@
   (cond
     (keyword? attr)
     (= \_ (nth (name attr) 0))
-    
+
     (string? attr)
     (boolean (re-matches #"(?:([^/]+)/)?_([^/]+)" attr))
-   
+
     :else
     (util/raise "Bad attribute type: " attr ", expected keyword or string"
-      {:error :transact/syntax, :attribute attr})))
+                {:error :transact/syntax, :attribute attr})))
 
 (defn reverse-ref [attr]
   (cond
@@ -1152,70 +1162,72 @@
       (if (= \_ (nth name 0))
         (if ns (str ns "/" (subs name 1)) (subs name 1))
         (if ns (str ns "/_" name) (str "_" name))))
-   
+
     :else
     (util/raise "Bad attribute type: " attr ", expected keyword or string"
-      {:error :transact/syntax, :attribute attr})))
+                {:error :transact/syntax, :attribute attr})))
 
 (defn resolve-tuple-refs [db a vs]
-  (mapv
+  (p/all
+   (mapv
     (fn [a v]
       (if (and (ref? db a) (sequential? v)) ;; lookup-ref
         (entid-strict db v)
         v))
-    (-> db -schema (get a) :db/tupleAttrs) vs))
+    (-> db -schema (get a) :db/tupleAttrs) vs)))
 
 (defn+ ^number entid [db eid]
   {:pre [(db? db)]}
-  (cond
-    (and (number? eid) (pos? eid))
-    (if (> eid emax)
-      (util/raise "Highest supported entity id is " emax ", got " eid {:error :entity-id :value eid})
-      eid)
-    
-    (sequential? eid)
-    (let [[attr value] eid]
-      (cond
-        (not= (count eid) 2)
-        (util/raise "Lookup ref should contain 2 elements: " eid
-          {:error :lookup-ref/syntax, :entity-id eid})
-        
-        (not (is-attr? db attr :db/unique))
-        (util/raise "Lookup ref attribute should be marked as :db/unique: " eid
-          {:error :lookup-ref/unique, :entity-id eid})
-        
-        (tuple? db attr)
-        (let [value' (resolve-tuple-refs db attr value)]
-          (-> (-datoms db :avet attr value' nil nil) first :e))
-        
-        (nil? value)
-        nil
-        
-        :else
-        (-> (-datoms db :avet attr value nil nil) first :e)))
-    
-    #?@(:cljs [(array? eid) (recur db (array-seq eid))])
-    
-    (keyword? eid)
-    (-> (-datoms db :avet :db/ident eid nil nil) first :e)
+  (p/do!
+   (cond
+     (and (number? eid) (pos? eid))
+     (if (> eid emax)
+       (util/raise "Highest supported entity id is " emax ", got " eid {:error :entity-id :value eid})
+       eid)
 
-    :else
-    (util/raise "Expected number or lookup ref for entity id, got " eid
-      {:error :entity-id/syntax, :entity-id eid})))
+     (sequential? eid)
+     (let [[attr value] eid]
+       (cond
+         (not= (count eid) 2)
+         (util/raise "Lookup ref should contain 2 elements: " eid
+                     {:error :lookup-ref/syntax, :entity-id eid})
+
+         (not (is-attr? db attr :db/unique))
+         (util/raise "Lookup ref attribute should be marked as :db/unique: " eid
+                     {:error :lookup-ref/unique, :entity-id eid})
+
+         (tuple? db attr)
+         (p/let [value' (resolve-tuple-refs db attr value)
+                 datoms (-datoms db :avet attr value' nil nil)]
+           (-> datoms first :e))
+
+         (nil? value)
+         nil
+
+         :else
+         (p/let [datoms (-datoms db :avet attr value nil nil)]
+           (-> datoms first :e))))
+
+     #?@(:cljs [(array? eid) (entid db (array-seq eid))])
+
+     ;; TODO: is this even possible?
+     (keyword? eid)
+     (p/let [datoms (-datoms db :avet :db/ident eid nil nil)]
+       (-> datoms first :e))
+
+     :else
+     (util/raise "Expected number or lookup ref for entity id, got " eid
+                 {:error :entity-id/syntax, :entity-id eid}))))
 
 (defn+ ^boolean numeric-eid-exists? [db eid]
   (= eid (-> (-seek-datoms db :eavt eid nil nil nil) first :e)))
 
-(defn+ ^number entid-strict [db eid]
-  (or
-    (entid db eid)
-    (util/raise "Nothing found for entity id " eid
-      {:error :entity-id/missing
-       :entity-id eid})))
-
-(defn+ ^number entid-some [db eid]
-  (when (some? eid)
-    (entid-strict db eid)))
+(defn+ entid-strict [db eid]
+  (p/let [e (entid db eid)]
+    (or e
+        (util/raise "Nothing found for entity id " eid
+                    {:error :entity-id/missing
+                     :entity-id eid}))))
 
 ;;;;;;;;;; Transacting
 
