@@ -1,5 +1,7 @@
 (ns datascript-async.util
   (:refer-clojure :exclude [find])
+  (:require
+   [promesa.core :as p])
   #?(:clj
      (:import
       [java.util UUID])))
@@ -103,6 +105,7 @@
        (case test
          :do   `(do ~expr (util/cond+ ~@rest))
          :let  `(let ~expr (util/cond+ ~@rest))
+         :plet `(p/let ~expr (util/cond+ ~@rest))
          :some `(or ~expr (util/cond+ ~@rest))
          `(util/if+ ~test ~expr (util/cond+ ~@rest))))))
 

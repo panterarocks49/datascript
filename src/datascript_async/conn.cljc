@@ -1,5 +1,6 @@
 (ns datascript-async.conn
   (:require
+   [promesa.core :as p]
    [datascript-async.db :as db #?@(:cljs [:refer [DB]])]
    [datascript-async.storage :as storage]
    [extend-clj.core :as extend]
@@ -24,13 +25,14 @@
   ([db tx-data] (with db tx-data nil))
   ([db tx-data tx-meta]
    {:pre [(db/db? db)]}
-   (db/transact-tx-data (db/->TxReport db db [] {} tx-meta) tx-data)))
+   (p/do! (db/transact-tx-data (db/->TxReport db db [] {} tx-meta) tx-data))))
 
 (defn ^DB db-with
   "Applies transaction to an immutable db value, returning new immutable db value. Same as `(:db-after (with db tx-data))`."
   [db tx-data]
   {:pre [(db/db? db)]}
-  (:db-after (with db tx-data)))
+  (p/let [report (with db tx-data)]
+    (:db-after report)))
 
 (defn conn? [conn]
   (and
