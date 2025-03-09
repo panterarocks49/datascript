@@ -1488,7 +1488,8 @@
                         (:e (first datoms)))
 
                       (not (tempid? v))
-                      (p/let [datoms (-datoms db :avet a (entid db v) nil nil)]
+                      (p/let [entid-v (entid db v)
+                              datoms  (-datoms db :avet a entid-v nil nil)]
                         (:e (first datoms)))))
           split   (fn [a vs]
                     (async-reduce
