@@ -943,22 +943,22 @@
 (defn- init-max-eid [rschema eavt avet]
   (let [max     #(if (and %2 (> %2 %1)) %2 %1)
         max-eid (some->
-                  (set/rslice eavt
-                    (datom (dec tx0) nil nil txmax)
-                    (datom e0 nil nil tx0))
-                  first :e)
+                 (set/rslice eavt
+                             (datom (dec tx0) nil nil txmax)
+                             (datom e0 nil nil tx0))
+                 first :e)
         res     (max e0 max-eid)
         max-ref (fn [attr]
                   (some->
-                    (set/rslice avet
-                      (datom (dec tx0) attr (dec tx0) txmax)
-                      (datom e0 attr e0 tx0))
-                    first :v))
+                   (set/rslice avet
+                               (datom (dec tx0) attr (dec tx0) txmax)
+                               (datom e0 attr e0 tx0))
+                   first :v))
         refs    (:db.type/ref rschema)
         res     (reduce
-                  (fn [res attr]
-                    (max res (max-ref attr)))
-                  res refs)]
+                 (fn [res attr]
+                   (max res (max-ref attr)))
+                 res refs)]
     res))
 
 (defn ^DB init-db [datoms schema opts]
@@ -978,18 +978,10 @@
         avet-arr    (to-array avet-datoms)
         _           (arrays/asort avet-arr cmp-datoms-avet-quick)
         avet        (set/from-sorted-array cmp-datoms-avet avet-arr (arrays/alength avet-arr) opts)
-        ;; TODO: do this better
-        refs        (:db.type/ref rschema)
-        max-eid     (reduce (fn [eid ^Datom d]
-                              (let [a (.-a d)]
-                                (if (refs a)
-                                  (max eid (.-e d) (.-v d))
-                                  (max eid (.-e d)))))
-                            e0
-                            datoms)
-        #_#_
+        ;; since the set is maybe async, it won't ever be async for this call
+        ;; because we just initialized it and everything is in memory
         max-eid     (init-max-eid rschema eavt avet)
-        max-tx      tx0 #_(transduce (map (fn [^Datom d] (datom-tx d))) max tx0 eavt)]
+        max-tx      (reduce (fn [tx ^Datom d] (max tx (datom-tx d))) tx0 datoms)]
     (map->DB
      {:schema        schema
       :rschema       rschema
