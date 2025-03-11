@@ -1,6 +1,7 @@
 (ns ^:no-doc datascript-async.pull-api
   (:require
    [promesa.core :as p]
+   [me.tonsky.maybe-promise :as mp]
    [clojure.string :as str]
    [datascript-async.pull-parser :as dpp]
    [datascript-async.db :as db #?@(:cljs [:refer [DB]])]
@@ -110,7 +111,7 @@
      :let [id (if (.-reverse? attr) (.-e datom) (.-v datom))]
 
      :else
-     (p/let [f (ref-frame context seen recursion-limits pattern attr id)]
+     (mp/let [f (ref-frame context seen recursion-limits pattern attr id)]
        [this f])))
 
   (-str [this]
@@ -187,7 +188,7 @@
           (MultivalAttrFrame. (transient []) attr datoms)]
 
          (.-ref? attr)
-         (p/let [rf (ref-frame context seen recursion-limits pattern attr (.-v datom))]
+         (mp/let [rf (ref-frame context seen recursion-limits pattern attr (.-v datom))]
            [(AttrsFrame. seen recursion-limits acc pattern attr attrs datoms id)
             rf])
 
@@ -214,27 +215,27 @@
      id))
 
   (-run [this context]
-    (p/loop [acc   acc
-             attr  attr
-             attrs attrs]
+    (mp/loop [acc   acc
+              attr  attr
+              attrs attrs]
       (let [^PullAttr attr attr]
         (if (nil? attr)
           [(ResultFrame. (not-empty (persistent! acc)) nil)]
-          (p/let [name   (.-name attr)
-                  db     (.-db ^Context context)
-                  datoms (if (instance? DB db)
-                           (set/slice (.-avet ^DB db) (db/datom db/e0 name id db/tx0) (db/datom db/emax name id db/txmax))
-                           (db/-search db [nil name id]))]
+          (mp/let [name   (.-name attr)
+                   db     (.-db ^Context context)
+                   datoms (if (instance? DB db)
+                            (set/slice (.-avet ^DB db) (db/datom db/e0 name id db/tx0) (db/datom db/emax name id db/txmax))
+                            (db/-search db [nil name id]))]
             (visit context :db.pull/reverse nil name id)
             (cond
               (and (empty? datoms) (some? (#?(:clj .-default :cljs :default) attr)))
-              (p/recur (assoc! acc (.-as attr) (#?(:clj .-default :cljs :default) attr)) (first-seq attrs) (next-seq attrs))
+              (mp/recur (assoc! acc (.-as attr) (#?(:clj .-default :cljs :default) attr)) (first-seq attrs) (next-seq attrs))
 
               (empty? datoms)
-              (p/recur acc (first-seq attrs) (next-seq attrs))
+              (mp/recur acc (first-seq attrs) (next-seq attrs))
 
               (.-component? attr)
-              (p/let [rf (ref-frame context seen recursion-limits pattern attr (.-e ^Datom (first-seq datoms)))]
+              (mp/let [rf (ref-frame context seen recursion-limits pattern attr (.-e ^Datom (first-seq datoms)))]
                 [(ReverseAttrsFrame. seen recursion-limits acc pattern attr attrs id)
                  rf])
 
@@ -275,33 +276,33 @@
    (attrs-frame context seen' recursion-limits' (if (.-recursive? attr) pattern (.-pattern attr)) id)))
 
 (defn attrs-frame [^Context context seen recursion-limits ^PullPattern pattern id]
-  (p/let [db     (.-db context)
-          datoms (util/cond+
-                  (and (.-wildcard? pattern) (instance? DB db))
-                  (set/slice (.-eavt ^DB db) (db/datom id nil nil db/tx0) (db/datom id nil nil db/txmax))
+  (mp/let [db     (.-db context)
+           datoms (util/cond+
+                   (and (.-wildcard? pattern) (instance? DB db))
+                   (set/slice (.-eavt ^DB db) (db/datom id nil nil db/tx0) (db/datom id nil nil db/txmax))
 
-                  (.-wildcard? pattern)
-                  (db/-search db [id])
+                   (.-wildcard? pattern)
+                   (db/-search db [id])
 
-                  (nil? (.-first-attr pattern))
-                  nil
+                   (nil? (.-first-attr pattern))
+                   nil
 
-                  :let [from (.-name ^PullAttr (.-first-attr pattern))
-                        to   (.-name ^PullAttr (.-last-attr pattern))]
-                  (instance? DB db)
-                  (set/slice (.-eavt ^DB db) (db/datom id from nil db/tx0) (db/datom id to nil db/txmax))
+                   :let [from (.-name ^PullAttr (.-first-attr pattern))
+                         to   (.-name ^PullAttr (.-last-attr pattern))]
+                   (instance? DB db)
+                   (set/slice (.-eavt ^DB db) (db/datom id from nil db/tx0) (db/datom id to nil db/txmax))
 
-                  :else
-                  ;; TODO: when does this happen?
-                  ;; I'm pretty sure there was a bug here before or it never happens
-                  (throw (ex-info "pattern not found" {}))
-                  ;; (->> (db/-seek-datoms db :eavt id nil nil nil))
-                  ;; (take-while
-                  ;;  (fn [^Datom d]
-                  ;;    (and
-                  ;;     (= (.-e d) id)
-                  ;;     (<= (compare (.-a d) to) 0))))
-                  )]
+                   :else
+                   ;; TODO: when does this happen?
+                   ;; I'm pretty sure there was a bug here before or it never happens
+                   (throw (ex-info "pattern not found" {}))
+                   ;; (->> (db/-seek-datoms db :eavt id nil nil nil))
+                   ;; (take-while
+                   ;;  (fn [^Datom d]
+                   ;;    (and
+                   ;;     (= (.-e d) id)
+                   ;;     (<= (compare (.-a d) to) 0))))
+                   )]
     (when (.-wildcard? pattern)
       (visit context :db.pull/wildcard id nil nil))
     (AttrsFrame.
@@ -315,19 +316,19 @@
      id)))
 
 (defn pull-impl [parsed-opts id]
-  (p/let [{^Context context     :context
-           ^PullPattern pattern :pattern} parsed-opts
-          eid (db/entid (.-db context) id)]
+  (mp/let [{^Context context     :context
+            ^PullPattern pattern :pattern} parsed-opts
+           eid (db/entid (.-db context) id)]
     (when (some? eid)
-      (p/let [start-frame (attrs-frame context #{} {} pattern eid)]
-        (p/loop [stack (list start-frame)]
+      (mp/let [start-frame (attrs-frame context #{} {} pattern eid)]
+        (mp/loop [stack (list start-frame)]
           (util/cond+
            :let [last   (first-seq stack)
                  stack' (next-seq stack)]
 
            (not (instance? ResultFrame last))
-           (p/let [res (-run last context)]
-             (p/recur (reduce conj-seq stack' res)))
+           (mp/let [res (-run last context)]
+             (mp/recur (reduce conj-seq stack' res)))
 
            (nil? stack')
            (.-value ^ResultFrame last)
@@ -336,7 +337,7 @@
                  stack''     (next-seq stack')]
 
            :else
-           (p/recur (conj-seq stack'' (-merge penultimate last)))))))))
+           (mp/recur (conj-seq stack'' (-merge penultimate last)))))))))
 
 (defn parse-opts
   ([db pattern] (parse-opts db pattern nil))

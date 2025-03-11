@@ -1598,19 +1598,19 @@
            v         (if (ref? db a) (entid-strict db v) v)
            new-datom (datom e a v tx)
            multival? (multival? db a)
-           old-datom ^Datom (if multival?
-                              (fsearch db [e a v])
-                              (fsearch db [e a]))]
+           old-datom (if multival?
+                       (fsearch db [e a v])
+                       (fsearch db [e a]))]
     (cond
       (nil? old-datom)
       (transact-report report new-datom)
 
-      (= (.-v old-datom) v)
+      (= (.-v ^Datom old-datom) v)
       (update report ::tx-redundant util/conjv new-datom)
 
       :else
       (-> report
-          (transact-report (datom e a (.-v old-datom) tx false))
+          (transact-report (datom e a (.-v ^Datom old-datom) tx false))
           (transact-report new-datom)))))
 
 (defn- transact-retract-datom [report ^Datom d]
