@@ -119,13 +119,20 @@
                       eavt-metadata aevt-metadata avet-metadata]} root
               opts    (merge root opts)
               adapter (make-storage-adapter storage)
+              eavt    (set/restore-by db/cmp-datoms-eavt eavt adapter (assoc opts :set-metadata eavt-metadata))
+              aevt    (set/restore-by db/cmp-datoms-aevt aevt adapter (assoc opts :set-metadata aevt-metadata))
+              avet    (set/restore-by db/cmp-datoms-avet avet adapter (assoc opts :set-metadata avet-metadata))
               db      (db/restore-db
                        {:schema  schema
-                        :eavt    (set/restore-by db/cmp-datoms-eavt eavt adapter (assoc opts :set-metadata eavt-metadata))
-                        :aevt    (set/restore-by db/cmp-datoms-aevt aevt adapter (assoc opts :set-metadata aevt-metadata))
-                        :avet    (set/restore-by db/cmp-datoms-avet avet adapter (assoc opts :set-metadata avet-metadata))
+                        :eavt    eavt
+                        :aevt    aevt
+                        :avet    avet
                         :max-eid max-eid
                         :max-tx  max-tx})]
+        ;; TODO: read all branch nodes
+        (set/-root eavt)
+        (set/-root aevt)
+        (set/-root avet)
         (remember-db db)
         [db tail]))))
 
