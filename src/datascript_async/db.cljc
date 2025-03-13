@@ -1216,9 +1216,6 @@
     (util/raise "Expected number or lookup ref for entity id, got " eid
                 {:error :entity-id/syntax, :entity-id eid})))
 
-(defn+ ^boolean numeric-eid-exists? [db eid]
-  (= eid (-> (-seek-datoms db :eavt eid nil nil nil) first :e)))
-
 (defn+ entid-strict [db eid]
   (mp/let [e (entid db eid)]
     (or e
@@ -1405,30 +1402,6 @@
            tuple-value' (assoc tuple-value idx v)]
     (assoc queue tuple tuple-value')))
 
-(defn async-reduce
-  "Like reduce but `f` can return a promise"
-  [f acc coll]
-  (reduce
-   (fn [acc v]
-     (mp/then
-      acc
-      (fn [acc]
-        (f acc v))))
-   acc
-   coll))
-
-(defn async-reduce-kv
-  "Like reduce-kv but `f` can return a promise"
-  [f acc coll]
-  (reduce-kv
-   (fn [acc k v]
-     (mp/then
-      acc
-      (fn [acc]
-        (f acc k v))))
-   acc
-   coll))
-
 ;; TODO: this shouldn't call itself, stack overflow?
 (defn async-every? [pred coll]
   (if (seq coll)
@@ -1440,7 +1413,7 @@
     true))
 
 (defn- queue-tuples [queue tuples db e a v]
-  (async-reduce-kv
+  (util/async-reduce-kv
    (fn [queue tuple idx]
      (queue-tuple queue tuple idx db e a v))
    queue
@@ -1480,17 +1453,17 @@
 
                       (not (tempid? v))
                       (mp/let [entid-v (entid db v)
-                              datoms  (-datoms db :avet a entid-v nil nil)]
+                               datoms  (-datoms db :avet a entid-v nil nil)]
                         (:e (first datoms)))))
           split   (fn [a vs]
-                    (async-reduce
+                    (util/async-reduce
                      (fn [acc v]
                        (mp/let [e (resolve a v)]
                          (if (some? e)
                            (update acc 1 assoc v e)
                            (update acc 0 conj v))))
                      [[] {}] vs))]
-      (async-reduce-kv
+      (util/async-reduce-kv
        (fn [[entity' upserts] a v]
          (validate-attr a entity)
          (validate-val v entity)
@@ -1651,9 +1624,9 @@
 
 (defn flush-tuples [report]
   (let [db (:db-after report)]
-    (async-reduce-kv
+    (util/async-reduce-kv
      (fn [entities eid tuples+values]
-       (async-reduce-kv
+       (util/async-reduce-kv
         (fn [entities tuple value]
           (mp/let [value   (if (every? nil? value) nil value)
                    datoms  (-datoms db :eavt eid tuple nil nil)
@@ -1917,7 +1890,7 @@
             (if (some? e)
               (mp/let [_      (validate-attr a entity)
                        datoms (-search db [e a])]
-                (mp/recur (async-reduce transact-retract-datom report datoms)
+                (mp/recur (util/async-reduce transact-retract-datom report datoms)
                           (concat (retract-components db datoms) entities)))
               (mp/recur report entities)))
 
@@ -1932,7 +1905,7 @@
                                     (-search db [nil a e]))
                                   (-attrs-by db :db.type/ref)))
                        v-datoms (mapcat identity v-datoms)]
-                (mp/recur (async-reduce transact-retract-datom report (concat e-datoms v-datoms))
+                (mp/recur (util/async-reduce transact-retract-datom report (concat e-datoms v-datoms))
                           (concat (retract-components db e-datoms) entities)))
               (mp/recur report entities)))
 

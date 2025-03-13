@@ -215,11 +215,35 @@
   "Same as reduce, but `f` takes [acc el idx]"
   [f init xs]
   (first
-    (reduce
-      (fn [[acc idx] x]
-        (let [res (f acc x idx)]
-          (if (reduced? res)
-            (reduced [res idx])
-            [res (inc idx)])))
-      [init 0]
-      xs)))
+   (reduce
+    (fn [[acc idx] x]
+      (let [res (f acc x idx)]
+        (if (reduced? res)
+          (reduced [res idx])
+          [res (inc idx)])))
+    [init 0]
+    xs)))
+
+(defn async-reduce
+  "Like reduce but `f` can return a promise"
+  [f acc coll]
+  (reduce
+   (fn [acc v]
+     (mp/then
+      acc
+      (fn [acc]
+        (f acc v))))
+   acc
+   coll))
+
+(defn async-reduce-kv
+  "Like reduce-kv but `f` can return a promise"
+  [f acc coll]
+  (reduce-kv
+   (fn [acc k v]
+     (mp/then
+      acc
+      (fn [acc]
+        (f acc k v))))
+   acc
+   coll))
