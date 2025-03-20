@@ -153,7 +153,7 @@
          ;; wildcard
          (and (.-wildcard? pattern) (some? datom) attr-ahead?)
          (let [datom-attr (lru/-get
-                           (.-pull-attrs ^DB (.-db ^Context context))
+                           (.-pull-attrs ^DB (db/unfiltered-db (.-db ^Context context)))
                            (.-a datom)
                            #(dpp/parse-attr-name (.-db ^Context context) (.-a datom)))]
            (recur acc datom-attr (when attr (conj-seq attrs attr)) datoms))
@@ -342,7 +342,7 @@
 (defn parse-opts
   ([db pattern] (parse-opts db pattern nil))
   ([db pattern {:keys [visitor]}]
-   {:pattern (lru/-get (.-pull-patterns ^DB db) pattern #(dpp/parse-pattern db pattern))
+   {:pattern (lru/-get (.-pull-patterns ^DB (db/unfiltered-db db)) pattern #(dpp/parse-pattern db pattern))
     :context (Context. db visitor)}))
 
 (defn pull

@@ -1,13 +1,13 @@
 (ns datascript-async.conn
   (:require
    [promesa.core :as p]
-   [datascript-async.db :as db #?@(:cljs [:refer [DB]])]
+   [datascript-async.db :as db #?@(:cljs [:refer [DB FilteredDB]])]
    [datascript-async.storage :as storage]
    [extend-clj.core :as extend]
    [me.tonsky.persistent-sorted-set :as set])
   #?(:clj
      (:import
-      [datascript-async.db DB])))
+      [datascript-async.db DB FilteredDB])))
 
 (extend/deftype-atom Conn [atom]
   (deref-impl [this]
@@ -25,7 +25,10 @@
   ([db tx-data] (with db tx-data nil))
   ([db tx-data tx-meta]
    {:pre [(db/db? db)]}
-   (p/do! (db/transact-tx-data (db/->TxReport db db [] {} tx-meta) tx-data))))
+   (p/do!
+    (if (instance? FilteredDB db)
+      (throw (ex-info "Filtered DB cannot be modified" {:error :transaction/filtered}))
+      (db/transact-tx-data (db/->TxReport db db [] {} tx-meta) tx-data)))))
 
 (defn ^DB db-with
   "Applies transaction to an immutable db value, returning new immutable db value. Same as `(:db-after (with db tx-data))`."

@@ -1,7 +1,14 @@
 {:deps     {:aliases [:dev]}
  :dev-http {8020 "public"}
  :builds
- {:web
+ {:test
+  {:target           :node-test
+   :output-to        "target/test.js"
+   ;; :ns-regexp        "me\\.tonsky\\.persistent-sorted-set\\.test\\..*$"
+   :ns-regexp        "datascript\\.test"
+   :compiler-options {:infer-externs true}}
+
+  :web
   {:target           :browser
    :output-dir       "public/js"
    :asset-path       "/js"

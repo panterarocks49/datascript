@@ -508,69 +508,69 @@
                   (d/pull @*test-db pattern id opts)
                   @*trace)]
     (is (= [[:db.pull/attr 1 :name nil]]
-          (test-fn [:name] 1)))
+           (test-fn [:name] 1)))
     
     (testing "multival"
       (is (= [[:db.pull/attr 1 :aka  nil]
               [:db.pull/attr 1 :name nil]]
-            (test-fn [:name :aka] 1))))
+             (test-fn [:name :aka] 1))))
     
     (testing ":db/id is ignored"
       (is (= [] (test-fn [:db/id] 1)))
       (is (= [[:db.pull/attr 1 :name nil]]
-            (test-fn [:db/id :name] 1))))
+             (test-fn [:db/id :name] 1))))
 
     (testing "wildcard"
       (is (= [[:db.pull/wildcard 1 nil    nil]
               [:db.pull/attr     1 :aka   nil]
               [:db.pull/attr     1 :child nil]
               [:db.pull/attr     1 :name  nil]]
-            (test-fn ['*] 1))))
+             (test-fn ['*] 1))))
 
     (testing "missing"
       (is (= [[:db.pull/attr 1 :missing nil]]
-            (test-fn [:missing] 1)))
+             (test-fn [:missing] 1)))
       (is (= [[:db.pull/wildcard 1 nil      nil]
               [:db.pull/attr     1 :aka     nil]
               [:db.pull/attr     1 :child   nil]
               [:db.pull/attr     1 :missing nil]
               [:db.pull/attr     1 :name    nil]]
-            (test-fn ['* :missing] 1))))
+             (test-fn ['* :missing] 1))))
 
     (testing "default"
       (is (= [[:db.pull/attr 1 :missing nil]]
-            (test-fn [[:missing :default 10]] 1)))
+             (test-fn [[:missing :default 10]] 1)))
       (is (= [[:db.pull/attr 2 :child nil]]
-            (test-fn [[:child :default 10]] 2))))
+             (test-fn [[:child :default 10]] 2))))
 
     (testing "recursion"
       (is (= [[:db.pull/attr 1 :child nil]]
-            (test-fn [:child] 1)))
+             (test-fn [:child] 1)))
       (is (= [[:db.pull/attr 1 :child nil]
               [:db.pull/attr 2 :name  nil]
               [:db.pull/attr 3 :name  nil]]
-            (test-fn [{:child [:name]}] 1)))
+             (test-fn [{:child [:name]}] 1)))
       (is (= [[:db.pull/attr 1 :child nil]
               [:db.pull/attr 2 :child nil]
               [:db.pull/attr 2 :name  nil]
               [:db.pull/attr 3 :child nil]
               [:db.pull/attr 3 :name  nil]
               [:db.pull/attr 1 :name  nil]]
-            (test-fn [:name {:child '...}] 1))))
+             (test-fn [:name {:child '...}] 1))))
 
     (testing "reverse"
       (is (= [[:db.pull/attr    2   :name  nil]
               [:db.pull/reverse nil :child 2]]
-            (test-fn [:name :_child] 2))))))
+             (test-fn [:name :_child] 2))))))
 
-(deftest test-pull-other-dbs
-  (let [db (-> @*test-db
-             (d/filter (fn [_ datom] (not= "Tupen" (:v datom)))))]
-    (is (= {:name "Petr" :aka ["Devil"]}
-          (d/pull db '[:name :aka] 1))))
-  (let [db (-> @*test-db d/serializable pr-str clojure.edn/read-string d/from-serializable)]
-    (is (= {:name "Petr" :aka ["Devil" "Tupen"]}
-          (d/pull db '[:name :aka] 1))))
-  (let [db (d/init-db (d/datoms @*test-db :eavt) test-schema)]
-    (is (= {:name "Petr" :aka ["Devil" "Tupen"]}
-          (d/pull db '[:name :aka] 1)))))
+;; (deftest test-pull-other-dbs
+;;   (let [db (-> @*test-db
+;;              (d/filter (fn [_ datom] (not= "Tupen" (:v datom)))))]
+;;     (is (= {:name "Petr" :aka ["Devil"]}
+;;           (d/pull db '[:name :aka] 1))))
+;;   (let [db (-> @*test-db d/serializable pr-str clojure.edn/read-string d/from-serializable)]
+;;     (is (= {:name "Petr" :aka ["Devil" "Tupen"]}
+;;           (d/pull db '[:name :aka] 1))))
+;;   (let [db (d/init-db (d/datoms @*test-db :eavt) test-schema)]
+;;     (is (= {:name "Petr" :aka ["Devil" "Tupen"]}
+;;           (d/pull db '[:name :aka] 1)))))

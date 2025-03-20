@@ -4,7 +4,7 @@
    [promesa.core :as p]
    [#?(:cljs cljs.reader :clj clojure.edn) :as edn]
    [datascript-async.conn :as conn]
-   [datascript-async.db :as db #?@(:cljs [:refer [Datom DB]])]
+   [datascript-async.db :as db #?@(:cljs [:refer [Datom DB FilteredDB]])]
    #?(:clj [datascript-async.pprint])
    [datascript-async.pull-api :as dp]
    [datascript-async.storage :as storage]
@@ -14,7 +14,7 @@
    [me.tonsky.persistent-sorted-set :as set])
   #?(:clj
      (:import
-      [datascript-async.db Datom DB]
+      [datascript-async.db Datom DB FilteredDB]
       [datascript-async.impl.entity Entity]
       [java.util UUID])))
 
@@ -210,6 +210,33 @@
 (def ^{:arglists '([db])
        :doc "Returns a schema of a database."}
   schema db/-schema)
+
+
+; Filtered db
+
+(defn is-filtered
+  "Returns `true` if this database was filtered using [[filter]], `false` otherwise."
+  [x]
+  (instance? FilteredDB x))
+
+(defn filter
+  "Returns a view over database that has same interface but only includes datoms for which the `(pred db datom)` is true. Can be applied multiple times.
+   
+   Filtered DB gotchas:
+
+   - All operations on filtered database are proxied to original DB, then filter pred is applied.
+   - Not cached. You pay filter penalty every time.
+   - Supports entities, pull, queries, index access.
+   - Does not support [[with]] and [[db-with]]."
+  [db pred]
+  {:pre [(db/db? db)]}
+  (if (is-filtered db)
+    (let [^FilteredDB fdb db
+          orig-pred (.-pred fdb)
+          orig-db   (.-unfiltered-db fdb)]
+      (FilteredDB. orig-db #(and (orig-pred %) (pred orig-db %)) (atom 0)))
+    (FilteredDB. db #(pred db %) (atom 0))))
+
 
 ; Changing DB
 
