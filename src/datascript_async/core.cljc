@@ -1,7 +1,6 @@
 (ns datascript-async.core
   (:refer-clojure :exclude [filter])
   (:require
-   [promesa.core :as p]
    [#?(:cljs cljs.reader :clj clojure.edn) :as edn]
    [datascript-async.conn :as conn]
    [datascript-async.db :as db #?@(:cljs [:refer [Datom DB FilteredDB]])]
@@ -81,7 +80,7 @@
 
    If entity does not exist, returns `nil`."
   [db eid]
-  (p/do! (db/entid db eid)))
+  (db/entid db eid))
 
 (defn ^DB entity-db
   "Returns a db that entity was created from."
@@ -326,11 +325,11 @@
    - Will not return datoms that are not part of the index (e.g. attributes with no `:db/index` in schema when querying `:avet` index).
      - `:eavt` and `:aevt` contain all datoms.
      - `:avet` only contains datoms for references, `:db/unique` and `:db/index` attributes."
-  ([db index]             {:pre [(db/db? db)]} (p/do! (db/-datoms db index nil nil nil nil)))
-  ([db index c0]          {:pre [(db/db? db)]} (p/do! (db/-datoms db index c0  nil nil nil)))
-  ([db index c0 c1]       {:pre [(db/db? db)]} (p/do! (db/-datoms db index c0  c1  nil nil)))
-  ([db index c0 c1 c2]    {:pre [(db/db? db)]} (p/do! (db/-datoms db index c0  c1  c2  nil)))
-  ([db index c0 c1 c2 c3] {:pre [(db/db? db)]} (p/do! (db/-datoms db index c0  c1  c2  c3))))
+  ([db index]             {:pre [(db/db? db)]} (db/-datoms db index nil nil nil nil))
+  ([db index c0]          {:pre [(db/db? db)]} (db/-datoms db index c0  nil nil nil))
+  ([db index c0 c1]       {:pre [(db/db? db)]} (db/-datoms db index c0  c1  nil nil))
+  ([db index c0 c1 c2]    {:pre [(db/db? db)]} (db/-datoms db index c0  c1  c2  nil))
+  ([db index c0 c1 c2 c3] {:pre [(db/db? db)]} (db/-datoms db index c0  c1  c2  c3)))
 
 (defn ^Datom find-datom
   "Same as [[datoms]], but only returns single datom. Faster than `(first (datoms ...))`"

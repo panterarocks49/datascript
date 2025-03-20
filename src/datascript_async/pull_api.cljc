@@ -1,6 +1,5 @@
 (ns ^:no-doc datascript-async.pull-api
   (:require
-   [promesa.core :as p]
    [me.tonsky.maybe-promise :as mp]
    [clojure.string :as str]
    [datascript-async.pull-parser :as dpp]
@@ -356,13 +355,13 @@
   ([db pattern id] (pull db pattern id {}))
   ([db pattern id opts]
    {:pre [(db/db? db)]}
-   (p/let [parsed-opts (parse-opts db pattern opts)]
+   (mp/let [parsed-opts (parse-opts db pattern opts)]
      (pull-impl parsed-opts id))))
 
 (defn pull-many
   ([db pattern ids] (pull-many db pattern ids {}))
   ([db pattern ids opts]
    {:pre [(db/db? db)]}
-   (p/let [parsed-opts (parse-opts db pattern opts)
-           ps (mapv #(pull-impl parsed-opts %) ids)]
-     (p/all ps))))
+   (mp/let [parsed-opts (parse-opts db pattern opts)
+            ps (mapv #(pull-impl parsed-opts %) ids)]
+     (mp/all ps))))
