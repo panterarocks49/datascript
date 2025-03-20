@@ -326,7 +326,7 @@
 
 (defn -group-by
   [f init coll]
-  (-> (util/async-reduce
+  (-> (mp/reduce
        (fn [ret x]
          (mp/let [k (f x)]
            (assoc! ret k (conj (get ret k init) x))))
@@ -357,7 +357,7 @@
         key-fn2      (tuple-key-fn context attrs2 common-attrs)]
     (mp/let [hash    (hash-attrs key-fn1 tuples1)
              new-tuples
-             (util/async-reduce
+             (mp/reduce
               (fn outer [acc tuple2]
                 (mp/let [key (key-fn2 tuple2)]
                   (if-some [tuples1 #?(:clj (hash key) :cljs (get hash key))]
@@ -378,7 +378,7 @@
         key-fn-a  (tuple-key-fn context attrs-a attrs)]
     (mp/let [hash      (hash-attrs key-fn-b tuples-b)
              new-tuples
-             (util/async-filterv
+             (mp/filterv
               #(mp/let [x (key-fn-a %)]
                  (nil? (hash x)))
               tuples-a)]
@@ -629,7 +629,7 @@
         final-attrs-map (zipmap final-attrs (range))
         ;;         clause-cache    (atom {}) ;; TODO
         solve           (fn [prefix-context clauses]
-                          (util/async-reduce -resolve-clause prefix-context clauses))
+                          (mp/reduce -resolve-clause prefix-context clauses))
         empty-rels?     (fn [context]
                           (some #(empty? (:tuples %)) (:rels context)))]
     (mp/loop [stack (list {:prefix-clauses []
@@ -752,8 +752,8 @@
        '[or *] ;; (or ...)
        (let [[_ & branches] clause
              _              (check-free-same (bound-vars context) branches clause)]
-         (mp/let [contexts (util/async-mapv #(resolve-clause context %) branches)
-                  rels     (util/async-mapv #(util/async-reduce hash-join (:rels %)) contexts)]
+         (mp/let [contexts (mp/mapv #(resolve-clause context %) branches)
+                  rels     (mp/mapv #(mp/reduce hash-join (:rels %)) contexts)]
            (assoc (first contexts) :rels [(reduce sum-rel rels)])))
 
        '[or-join [[*] *] *] ;; (or-join [[req-vars] vars] ...)
@@ -768,19 +768,19 @@
              vars                (set vars)
              _                   (check-free-subset (bound-vars context) vars branches)
              join-context        (limit-context context vars)]
-         (mp/let [contexts (util/async-mapv
+         (mp/let [contexts (mp/mapv
                             (fn [branch]
                               (-> join-context
                                   (resolve-clause branch)
                                   (mp/then #(limit-context % vars))))
                             branches)
-                  rels     (util/async-mapv #(util/async-reduce hash-join (:rels %)) contexts)
+                  rels     (mp/mapv #(mp/reduce hash-join (:rels %)) contexts)
                   new-rels (collapse-rels context (:rels context) (reduce sum-rel rels))]
            (assoc context :rels new-rels)))
 
        '[and *] ;; (and ...)
        (let [[_ & clauses] clause]
-         (util/async-reduce resolve-clause context clauses))
+         (mp/reduce resolve-clause context clauses))
 
        '[not *] ;; (not ...)
        (let [[_ & clauses]    clause
@@ -790,10 +790,10 @@
                                 (util/raise "Insufficient bindings: none of " negation-vars " is bound in " orig-clause
                                             {:error :query/where
                                              :form  orig-clause}))]
-         (mp/let [new-rel          (util/async-reduce hash-join (:rels context))
+         (mp/let [new-rel          (mp/reduce hash-join (:rels context))
                   context'         (assoc context :rels [new-rel])
-                  negation-context (util/async-reduce resolve-clause context' clauses)
-                  neg-rel          (util/async-reduce hash-join (:rels negation-context))
+                  negation-context (mp/reduce resolve-clause context' clauses)
+                  neg-rel          (mp/reduce hash-join (:rels negation-context))
                   negation         (subtract-rel
                                     context
                                     (util/single (:rels context'))
@@ -804,12 +804,12 @@
        (let [[_ vars & clauses] clause
              bound              (bound-vars context)
              _                  (check-bound bound vars orig-clause)]
-         (mp/let [new-rel          (util/async-reduce hash-join (:rels context))
+         (mp/let [new-rel          (mp/reduce hash-join (:rels context))
                   context'         (assoc context :rels [new-rel])
                   join-context     (limit-context context' vars)
-                  negation-context (-> (util/async-reduce resolve-clause join-context clauses)
+                  negation-context (-> (mp/reduce resolve-clause join-context clauses)
                                        (mp/then #(limit-context % vars)))
-                  neg-rel          (util/async-reduce hash-join (:rels negation-context))
+                  neg-rel          (mp/reduce hash-join (:rels negation-context))
                   negation         (subtract-rel
                                     context
                                     (util/single (:rels context'))
@@ -851,7 +851,7 @@
 
 (defn -q [context clauses]
   (let [context (assoc context :implicit-source (get (:sources context) '$))]
-    (util/async-reduce resolve-clause context clauses)))
+    (mp/reduce resolve-clause context clauses)))
 
 (defn -collect-tuples
   [acc rel ^long len copy-map]
@@ -993,7 +993,7 @@
                            pattern (-context-resolve (:pattern find) context)]
                        (dpa/parse-opts db pattern))))]
     (for [tuple resultset]
-      (util/async-mapv
+      (mp/mapv
        (fn [[parsed-opts el]]
          (if parsed-opts
            (dpa/pull-impl parsed-opts el)

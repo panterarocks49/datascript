@@ -1478,18 +1478,8 @@
            tuple-value' (assoc tuple-value idx v)]
     (assoc queue tuple tuple-value')))
 
-;; TODO: this shouldn't call itself, stack overflow?
-(defn async-every? [pred coll]
-  (if (seq coll)
-    (mp/then (pred (first coll))
-             (fn [result]
-               (if (false? result)
-                 false
-                 (async-every? pred (rest coll)))))
-    true))
-
 (defn- queue-tuples [queue tuples db e a v]
-  (util/async-reduce-kv
+  (mp/reduce-kv
    (fn [queue tuple idx]
      (queue-tuple queue tuple idx db e a v))
    queue
@@ -1532,14 +1522,14 @@
                                datoms  (-datoms db :avet a entid-v nil nil)]
                         (:e (first datoms)))))
           split   (fn [a vs]
-                    (util/async-reduce
+                    (mp/reduce
                      (fn [acc v]
                        (mp/let [e (resolve a v)]
                          (if (some? e)
                            (update acc 1 assoc v e)
                            (update acc 0 conj v))))
                      [[] {}] vs))]
-      (util/async-reduce-kv
+      (mp/reduce-kv
        (fn [[entity' upserts] a v]
          (validate-attr a entity)
          (validate-val v entity)
@@ -1700,9 +1690,9 @@
 
 (defn flush-tuples [report]
   (let [db (:db-after report)]
-    (util/async-reduce-kv
+    (mp/reduce-kv
      (fn [entities eid tuples+values]
-       (util/async-reduce-kv
+       (mp/reduce-kv
         (fn [entities tuple value]
           (mp/let [value   (if (every? nil? value) nil value)
                    datoms  (-datoms db :eavt eid tuple nil nil)
@@ -1933,7 +1923,7 @@
                        (= (count tuple-attrs) (count v))
                        (every? some? v))
                    x? (if x?
-                        (async-every?
+                        (mp/every?
                          (fn [[tuple-attr tuple-value]]
                            (mp/let [datoms (-datoms db :eavt e tuple-attr nil nil)
                                     db-value (:v (first datoms))]
@@ -1966,7 +1956,7 @@
             (if (some? e)
               (mp/let [_      (validate-attr a entity)
                        datoms (-search db [e a])]
-                (mp/recur (util/async-reduce transact-retract-datom report datoms)
+                (mp/recur (mp/reduce transact-retract-datom report datoms)
                           (concat (retract-components db datoms) entities)))
               (mp/recur report entities)))
 
@@ -1981,7 +1971,7 @@
                                     (-search db [nil a e]))
                                   (-attrs-by db :db.type/ref)))
                        v-datoms (mapcat identity v-datoms)]
-                (mp/recur (util/async-reduce transact-retract-datom report (concat e-datoms v-datoms))
+                (mp/recur (mp/reduce transact-retract-datom report (concat e-datoms v-datoms))
                           (concat (retract-components db e-datoms) entities)))
               (mp/recur report entities)))
 

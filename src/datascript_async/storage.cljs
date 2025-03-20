@@ -2,6 +2,7 @@
   (:require
    [promesa.core :as p]
    [datascript-async.db :as db]
+   [me.tonsky.maybe-promise :as mp]
    [datascript-async.util :as util]
    [me.tonsky.persistent-sorted-set.storage :as set.storage]
    [me.tonsky.persistent-sorted-set-async :as set]))
@@ -139,12 +140,12 @@
         [db tail]))))
 
 (defn db-with-tail [db tail]
-  (util/async-reduce
+  (mp/reduce
    (fn [db datoms]
      (if (empty? datoms)
        db
        (as-> db %
-         (util/async-reduce db/with-datom % datoms)
+         (mp/reduce db/with-datom % datoms)
          (assoc % :max-tx (:tx (first datoms))))))
    db
    tail))

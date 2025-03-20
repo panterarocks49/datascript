@@ -225,62 +225,6 @@
     [init 0]
     xs)))
 
-(defn async-reduce
-  "Like reduce but `f` can return a promise"
-  ([f coll]
-   (if-let [s (seq coll)]
-     (async-reduce f (first s) (next s))
-     (f)))
-  ([f acc coll]
-   (reduce
-    (fn [acc v]
-      (mp/then
-       acc
-       (fn [acc]
-         (f acc v))))
-    acc
-    coll)))
-
-(defn async-reduce-kv
-  "Like reduce-kv but `f` can return a promise"
-  [f acc coll]
-  (reduce-kv
-   (fn [acc k v]
-     (mp/then
-      acc
-      (fn [acc]
-        (f acc k v))))
-   acc
-   coll))
-
-(defn async-mapv
-  [f coll]
-  (-> (async-reduce
-       (fn [acc x]
-         (mp/then
-          (f x)
-          (fn [new-x]
-            (conj! acc new-x))))
-       (transient [])
-       coll)
-      (mp/then (fn [ret]
-                 (persistent! ret)))))
-
-(defn async-filterv
-  [f coll]
-  (-> (async-reduce
-       (fn [acc x]
-         (mp/then
-          (f x)
-          (fn [keep?]
-            (if keep?
-              (conj! acc x)
-              acc))))
-       (transient [])
-       coll)
-      (mp/then (fn [ret]
-                 (persistent! ret)))))
-
 ;; An atom mapping each lock to its promise chain.
 (defonce async-locks (atom {}))
 

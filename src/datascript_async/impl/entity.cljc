@@ -28,7 +28,7 @@
 (defn- entity-attr [db a datoms]
   (if (db/multival? db a)
     (if (db/ref? db a)
-      (mp/let [acc (util/async-reduce
+      (mp/let [acc (mp/reduce
                     (fn [acc ^Datom datom]
                       (mp/let [ent (entity db (.-v datom))]
                         (conj! acc ent)))
@@ -51,7 +51,7 @@
       (if (db/component? db attr)
         (entity db (.-e ^Datom (first datoms)))
         (mp/let [acc
-                 (util/async-reduce
+                 (mp/reduce
                   (fn [acc ^Datom datom]
                     (conj! acc (entity db (.-e datom))))
                   (transient #{})
@@ -235,7 +235,7 @@
 
 (defn touch-components [db a->v]
   (mp/let [acc
-           (util/async-reduce-kv
+           (mp/reduce-kv
             (fn [acc a v]
               (mp/let [v (if (db/component? db a)
                            (if (db/multival? db a)
@@ -251,7 +251,7 @@
 
 (defn- datoms->cache [db datoms]
   (mp/let [acc
-           (util/async-reduce
+           (mp/reduce
             (fn [acc part]
               (let [a (.-a ^Datom (first part))]
                 (mp/let [v (entity-attr db a part)]
