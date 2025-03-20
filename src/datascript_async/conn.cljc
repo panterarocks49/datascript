@@ -1,8 +1,10 @@
 (ns datascript-async.conn
   (:require
+   [promesa.core :as p]
    [me.tonsky.maybe-promise :as mp]
    [datascript-async.db :as db #?@(:cljs [:refer [DB FilteredDB]])]
    [datascript-async.storage :as storage]
+   [datascript-async.util :as util]
    [extend-clj.core :as extend]
    [me.tonsky.persistent-sorted-set :as set])
   #?(:clj
@@ -47,12 +49,12 @@
 (defn conn-from-db [db]
   {:pre [(db/db? db)]}
   (if-some [storage (storage/storage db)]
-    (do
-      (storage/store db)
-      (make-conn
-        {:db db
-         :tx-tail []
-         :db-last-stored db}))
+    (-> (storage/store db)
+        (mp/then
+         #(make-conn
+           {:db             db
+            :tx-tail        []
+            :db-last-stored db})))
     (make-conn {:db db})))
 
 (defn conn-from-datoms
@@ -75,48 +77,54 @@
   ([storage]
    (restore-conn storage {}))
   ([storage opts]
-   (when-some [[db tail] (storage/restore-impl storage opts)]
-     (make-conn
-      {:db (storage/db-with-tail db tail)
-       :tx-tail tail
-       :db-last-stored db}))))
+   (mp/let [r (storage/restore-impl storage opts)]
+     (when-some [[db tail] r]
+       (mp/let [db-with-tail (storage/db-with-tail db tail)]
+         (make-conn
+          {:db             db-with-tail
+           :tx-tail        tail
+           :db-last-stored db}))))))
 
 (defn ^:no-doc -transact! [conn tx-data tx-meta]
   {:pre [(conn? conn)]}
-  (let [*report (volatile! nil)]
+  (p/let [db     @conn
+          ;; since we lock the conn, doing this outside of swap should be ok
+          report (with db tx-data tx-meta)]
+    (when-some [storage (storage/storage @conn)]
+      (let [{db     :db-after
+             datoms :tx-data} report
+            *atom    (:atom conn)
+            tx-tail' (:tx-tail (swap! *atom update :tx-tail conj datoms))]
+        ;; branching-factor is hard coded to 1024
+        (if (> (transduce (map count) + 0 tx-tail') 1024)
+          ;; overflow tail
+          (p/do!
+           (storage/store-impl! db (storage/storage-adapter db) false)
+           (swap! *atom assoc
+                  :tx-tail []
+                  :db-last-stored db))
+          ;; just update tail
+          (storage/store-tail db tx-tail'))))
+    ;; update the conn after storing the new DB
+    ;; in case storing fails
     (swap! conn
-      (fn [db]
-        (let [r (with db tx-data tx-meta)]
-          (vreset! *report r)
-          (:db-after r))))
-    #?(:clj
-       (when-some [storage (storage/storage @conn)]
-         (let [{db     :db-after
-                datoms :tx-data} @*report
-               settings (set/settings (:eavt db))
-               *atom    (:atom conn)
-               tx-tail' (:tx-tail (swap! *atom update :tx-tail conj datoms))]
-           (if (> (transduce (map count) + 0 tx-tail') (:branching-factor settings))
-             ;; overflow tail
-             (do
-               (storage/store-impl! db (storage/storage-adapter db) false)
-               (swap! *atom assoc
-                 :tx-tail []
-                 :db-last-stored db))
-             ;; just update tail
-             (storage/store-tail db tx-tail')))))
-    @*report))
+           (fn [deref-db]
+             (when-not (identical? deref-db db)
+               (util/raise "Transact failed: db changed during transaction" {}))
+             (:db-after report)))
+    report))
 
 (defn transact!
   ([conn tx-data]
    (transact! conn tx-data nil))
   ([conn tx-data tx-meta]
    {:pre [(conn? conn)]}
-   (locking conn
-     (let [report (-transact! conn tx-data tx-meta)]
-       (doseq [[_ callback] (:listeners @(:atom conn))]
-         (callback report))
-       report))))
+   (util/async-locking
+    conn
+    (p/let [report (-transact! conn tx-data tx-meta)]
+      (doseq [[_ callback] (:listeners @(:atom conn))]
+        (callback report))
+      report))))
 
 (defn reset-conn!
   ([conn db]
@@ -124,22 +132,22 @@
   ([conn db tx-meta]
    {:pre [(conn? conn)
           (db/db? db)]}
-   (let [db-before @conn
-         report    (db/map->TxReport
-                     {:db-before db-before
-                      :db-after  db
-                      :tx-data   (concat
+   (p/let [db-before @conn
+           report    (db/map->TxReport
+                      {:db-before db-before
+                       :db-after  db
+                       :tx-data   (concat
                                    (when db-before
                                      (map #(assoc % :added false) (db/-datoms db-before :eavt nil nil nil nil)))
                                    (db/-datoms db :eavt nil nil nil nil))
-                      :tx-meta   tx-meta})]
+                       :tx-meta   tx-meta})]
      (if-some [storage (storage/storage db-before)]
-       (do
-         (storage/store db)
-         (swap! (:atom conn) assoc
-           :db db
-           :tx-tail []
-           :db-last-stored db))
+       (p/do!
+        (storage/store db)
+        (swap! (:atom conn) assoc
+               :db db
+               :tx-tail []
+               :db-last-stored db))
        (reset! conn db))
      (doseq [[_ callback] (:listeners @(:atom conn))]
        (callback report))
@@ -147,13 +155,13 @@
 
 (defn reset-schema! [conn schema]
   {:pre [(conn? conn)]}
-  (let [db (swap! conn db/with-schema schema)]
-    #?(:clj
-       (when-some [storage (storage/storage @conn)]
-         (storage/store-impl! db (storage/storage-adapter db) true)
-         (swap! (:atom conn) assoc
-           :tx-tail []
-           :db-last-stored db)))
+  (p/let [db (swap! conn db/with-schema schema)]
+    (when-some [storage (storage/storage @conn)]
+      (p/do!
+       (storage/store-impl! db (storage/storage-adapter db) true)
+       (swap! (:atom conn) assoc
+              :tx-tail []
+              :db-last-stored db)))
     db))
 
 (defn listen!

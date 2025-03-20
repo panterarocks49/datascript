@@ -31,9 +31,6 @@
 (def ^:private tail-addr
   "tail")
 
-(defn serializable-datom [^Datom d]
-  [(.-e d) (.-a d) (.-v d) (.-tx d)])
-
 (deftype StorageAdapter [storage ^:mutable store-buffer]
   set.storage/IStorage
   (store [_ node]
@@ -70,29 +67,32 @@
   (.push stored-dbs (js/WeakRef. db)))
 
 (defn store-impl! [db ^StorageAdapter adapter force?]
-  (remember-db db)
-  (let [store-buffer (volatile! (transient []))]
-    (set! (.-store-buffer adapter) store-buffer)
-    (p/let [eavt-addr (set/store (:eavt db) adapter)
-            aevt-addr (set/store (:aevt db) adapter)
-            avet-addr (set/store (:avet db) adapter)
-            meta (merge
-                  {:schema        (:schema db)
-                   :max-eid       (:max-eid db)
-                   :max-tx        (:max-tx db)
-                   :eavt          eavt-addr
-                   :aevt          aevt-addr
-                   :avet          avet-addr
-                   :eavt-metadata (set/set-metadata (:eavt db))
-                   :aevt-metadata (set/set-metadata (:aevt db))
-                   :avet-metadata (set/set-metadata (:avet db))}
-                  (set/settings (:eavt db)))]
-      (when (or force? (pos? (count @store-buffer)))
-        (vswap! store-buffer conj! [root-addr meta])
-        (vswap! store-buffer conj! [tail-addr []])
-        (-store (.-storage adapter) (persistent! @store-buffer)))
-      (set! (.-store-buffer adapter) nil)
-      db)))
+  (util/async-locking
+   (:storage adapter)
+   (p/do!
+    (remember-db db)
+    (let [store-buffer (volatile! (transient []))]
+      (set! (.-store-buffer adapter) store-buffer)
+      (p/let [eavt-addr (set/store (:eavt db) adapter)
+              aevt-addr (set/store (:aevt db) adapter)
+              avet-addr (set/store (:avet db) adapter)
+              meta (merge
+                    {:schema        (:schema db)
+                     :max-eid       (:max-eid db)
+                     :max-tx        (:max-tx db)
+                     :eavt          eavt-addr
+                     :aevt          aevt-addr
+                     :avet          avet-addr
+                     :eavt-metadata (set/set-metadata (:eavt db))
+                     :aevt-metadata (set/set-metadata (:aevt db))
+                     :avet-metadata (set/set-metadata (:avet db))}
+                    (set/settings (:eavt db)))]
+        (when (or force? (pos? (count @store-buffer)))
+          (vswap! store-buffer conj! [root-addr meta])
+          (vswap! store-buffer conj! [tail-addr []])
+          (-store (.-storage adapter) (persistent! @store-buffer)))
+        (set! (.-store-buffer adapter) nil)
+        db)))))
 
 (defn store
   ([db]
@@ -112,6 +112,8 @@
   (-store (storage db) [[tail-addr tail]]))
 
 (defn restore-impl [storage opts]
+  ;; TODO: do I need async-locking here?
+  ;; not sure why it was used in the clojure impl
   (p/let [root (-restore storage root-addr)]
     (when root
       (p/let [tail    (-restore storage tail-addr)
@@ -137,17 +139,15 @@
         [db tail]))))
 
 (defn db-with-tail [db tail]
-  ;; yeah fuck tail for now?
-  db
-  #_
-  (reduce
+  (util/async-reduce
    (fn [db datoms]
      (if (empty? datoms)
        db
        (as-> db %
-         (reduce db/with-datom % datoms)
+         (util/async-reduce db/with-datom % datoms)
          (assoc % :max-tx (:tx (first datoms))))))
-   db tail))
+   db
+   tail))
 
 (defn restore
   ([storage]
@@ -193,6 +193,7 @@
         (persistent! res)))))
 
 (defn collect-garbage [storage']
+  ;; TODO: async-locking
   (let [dbs    (conj
                 (read-stored-dbs storage')
                 (restore storage')) ;; make sure we won’t gc currently stored db
