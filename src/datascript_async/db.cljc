@@ -727,40 +727,36 @@
              (case-tree [e a (some? v) tx]
                         [(set/slice eavt (datom e a v tx) (datom e a v tx))                   ;; e a v tx
                          (set/slice eavt (datom e a v tx0) (datom e a v txmax))               ;; e a v _
-                         (->> (set/slice eavt (datom e a nil tx0) (datom e a nil txmax))      ;; e a _ tx
-                              (mp/then #(filter (fn [^Datom d] (= tx (datom-tx d))) %)))
+                         (-> (set/slice eavt (datom e a nil tx0) (datom e a nil txmax))      ;; e a _ tx
+                             (mp/then #(filter (fn [^Datom d] (= tx (datom-tx d))) %)))
                          (set/slice eavt (datom e a nil tx0) (datom e a nil txmax))           ;; e a _ _
-                         (->> (set/slice eavt (datom e nil nil tx0) (datom e nil nil txmax))  ;; e _ v tx
-                              (mp/then #(filter (fn [^Datom d] (and (pred (.-v d))
-                                                                    (= tx (datom-tx d)))) %)))
-                         (->> (set/slice eavt (datom e nil nil tx0) (datom e nil nil txmax))  ;; e _ v _
-                              (mp/then #(filter (fn [^Datom d] (pred (.-v d))) %)))
-                         (->> (set/slice eavt (datom e nil nil tx0) (datom e nil nil txmax))  ;; e _ _ tx
-                              (mp/then #(filter (fn [^Datom d] (= tx (datom-tx d))) %)))
+                         (-> (set/slice eavt (datom e nil nil tx0) (datom e nil nil txmax))  ;; e _ v tx
+                             (mp/then #(filter (fn [^Datom d] (and (pred (.-v d))
+                                                                   (= tx (datom-tx d)))) %)))
+                         (-> (set/slice eavt (datom e nil nil tx0) (datom e nil nil txmax))  ;; e _ v _
+                             (mp/then #(filter (fn [^Datom d] (pred (.-v d))) %)))
+                         (-> (set/slice eavt (datom e nil nil tx0) (datom e nil nil txmax))  ;; e _ _ tx
+                             (mp/then #(filter (fn [^Datom d] (= tx (datom-tx d))) %)))
                          (set/slice eavt (datom e nil nil tx0) (datom e nil nil txmax))       ;; e _ _ _
                          (if (indexing? db a)                                                 ;; _ a v tx
-                           (->> (set/slice avet (datom e0 a v tx0) (datom emax a v txmax))      
-                                (mp/then #(filter (fn [^Datom d] (= tx (datom-tx d))) %)))
-                           (->> (set/slice aevt (datom e0 a nil tx0) (datom emax a nil txmax))
-                                (mp/then #(filter (fn [^Datom d] (and (pred (.-v d))
-                                                                      (= tx (datom-tx d)))) %))))
+                           (-> (set/slice avet (datom e0 a v tx0) (datom emax a v txmax))      
+                               (mp/then #(filter (fn [^Datom d] (= tx (datom-tx d))) %)))
+                           (-> (set/slice aevt (datom e0 a nil tx0) (datom emax a nil txmax))
+                               (mp/then #(filter (fn [^Datom d] (and (pred (.-v d))
+                                                                     (= tx (datom-tx d)))) %))))
                          (if (indexing? db a)                                                 ;; _ a v _
                            (set/slice avet (datom e0 a v tx0) (datom emax a v txmax))
-                           (->> (set/slice aevt (datom e0 a nil tx0) (datom emax a nil txmax))
-                                (mp/then #(filter (fn [^Datom d] (pred (.-v d))) %))))
-                         (->> (set/slice aevt (datom e0 a nil tx0) (datom emax a nil txmax))  ;; _ a _ tx
-                              (mp/then #(filter (fn [^Datom d] (= tx (datom-tx d))) %)))
+                           (-> (set/slice aevt (datom e0 a nil tx0) (datom emax a nil txmax))
+                               (mp/then #(filter (fn [^Datom d] (pred (.-v d))) %))))
+                         (-> (set/slice aevt (datom e0 a nil tx0) (datom emax a nil txmax))  ;; _ a _ tx
+                             (mp/then #(filter (fn [^Datom d] (= tx (datom-tx d))) %)))
                          (set/slice aevt (datom e0 a nil tx0) (datom emax a nil txmax))       ;; _ a _ _
-                         (throw (ex-info "not supported yet" {}))
-                         #_(filter (fn [^Datom d] (and (pred (.-v d))
-                                                       (= tx (datom-tx d)))) eavt)                 ;; _ _ v tx
-                         (throw (ex-info "not supported yet" {}))
-                         #_(filter (fn [^Datom d] (pred (.-v d))) eavt)                         ;; _ _ v _
-                         (throw (ex-info "not supported yet" {}))
-                         #_(filter (fn [^Datom d] (= tx (datom-tx d))) eavt)                    ;; _ _ _ tx
-                         (throw (ex-info "not supported yet" {}))
-                         #_
-                         eavt])))                                                             ;; _ _ _ _
+                         ;; TODO: these are all going to be very inefficient if loading from disk
+                         (filter (fn [^Datom d] (and (pred (.-v d))
+                                                     (= tx (datom-tx d)))) eavt)                 ;; _ _ v tx
+                         (filter (fn [^Datom d] (pred (.-v d))) eavt)                         ;; _ _ v _
+                         (filter (fn [^Datom d] (= tx (datom-tx d))) eavt)                    ;; _ _ _ tx
+                         (seq eavt)])))                                                             ;; _ _ _ _
 
   IIndexAccess
   (-datoms [db index c0 c1 c2 c3]
@@ -771,28 +767,24 @@
 
   (-seek-datoms [db index c0 c1 c2 c3]
                 (validate-indexed db index c0 c1 c2 c3)
-                (throw (ex-info "not supported yet" {}))
-                #_
-                (set/slice (get db index)
-                           (components->pattern db index c0 c1 c2 c3 e0 tx0)
-                           (datom emax nil nil txmax)))
+                (mp/let [key-start (components->pattern db index c0 c1 c2 c3 e0 tx0)]
+                  (set/slice (get db index)
+                             key-start
+                             (datom emax nil nil txmax))))
 
   (-rseek-datoms [db index c0 c1 c2 c3]
                  (validate-indexed db index c0 c1 c2 c3)
-                 (throw (ex-info "not supported yet" {}))
-                 #_
-                 (set/rslice (get db index)
-                             (components->pattern db index c0 c1 c2 c3 emax txmax)
-                             (datom e0 nil nil tx0)))
+                 (mp/let [key-start (components->pattern db index c0 c1 c2 c3 emax txmax)]
+                   (set/rslice (get db index)
+                               key-start
+                               (datom e0 nil nil tx0))))
 
   (-index-range [db attr start end]
                 (validate-indexed db :avet attr nil nil nil)
                 (validate-attr attr (list '-index-range 'db attr start end))
-                (throw (ex-info "not supported yet" {}))
-                #_
-                (set/slice (.-avet db)
-                           (resolve-datom db nil attr start nil e0 tx0)
-                           (resolve-datom db nil attr end nil emax txmax)))
+                (mp/let [key-from (resolve-datom db nil attr start nil e0 tx0)
+                         key-to (resolve-datom db nil attr end nil emax txmax)]
+                  (set/slice (.-avet db) key-from key-to)))
 
   clojure.data/EqualityPartition
   (equality-partition [x] :datascript-async/db)
@@ -1151,55 +1143,62 @@
 (declare+ ^boolean ref? [db attr])
 
 (defn+ resolve-datom [db e a v t default-e default-tx]
-(when (some? a)
-  (validate-attr a (list 'resolve-datom 'db e a v t)))
-(mp/let [e (if (some? e)
-             (entid-strict db e)
-             default-e)
-         v (if (and (some? v) (ref? db a))
-             (entid-strict db v)
-             v)
-         ;; TODO: why do entid on t?
-         t (if (some? t)
-             (entid-strict db t)
-             default-tx)]
-  (datom e a v t)))
+  (when (some? a)
+    (validate-attr a (list 'resolve-datom 'db e a v t)))
+  (mp/let [e (if (some? e)
+               (entid-strict db e)
+               default-e)
+           v (if (and (some? v) (ref? db a))
+               (entid-strict db v)
+               v)
+           ;; TODO: why do entid on t?
+           t (if (some? t)
+               (entid-strict db t)
+               default-tx)]
+    (datom e a v t)))
 
 (defn+ components->pattern [db index c0 c1 c2 c3 default-e default-tx]
-(case index
-  :eavt (resolve-datom db c0 c1 c2 c3 default-e default-tx)
-  :aevt (resolve-datom db c1 c0 c2 c3 default-e default-tx)
-  :avet (resolve-datom db c2 c0 c1 c3 default-e default-tx)))
+  (case index
+    :eavt (resolve-datom db c0 c1 c2 c3 default-e default-tx)
+    :aevt (resolve-datom db c1 c0 c2 c3 default-e default-tx)
+    :avet (resolve-datom db c2 c0 c1 c3 default-e default-tx)))
 
 (defn find-datom [db index c0 c1 c2 c3]
-(validate-indexed db index c0 c1 c2 c3)
-(let [set     (get db index)
-      cmp     #?(:clj (.comparator ^clojure.lang.Sorted set) :cljs (.-comparator ^set/BTSet set))
-      from    (components->pattern db index c0 c1 c2 c3 e0 tx0)
-      to      (components->pattern db index c0 c1 c2 c3 emax txmax)
-      datom   (some-> set seq (set/seek from) first)]
-  (when (and (some? datom) (<= 0 (cmp to datom)))
-    datom)))
+  (validate-indexed db index c0 c1 c2 c3)
+  ;; TODO: make this as fast as before?
+  (mp/let [set     (get db index)
+           from    (components->pattern db index c0 c1 c2 c3 e0 tx0)
+           to      (components->pattern db index c0 c1 c2 c3 emax txmax)
+           datoms  (set/slice set from to)]
+    (first datoms))
+  #_
+  (let [set     (get db index)
+        cmp     #?(:clj (.comparator ^clojure.lang.Sorted set) :cljs (.-comparator ^set/BTSet set))
+        from    (components->pattern db index c0 c1 c2 c3 e0 tx0)
+        to      (components->pattern db index c0 c1 c2 c3 emax txmax)
+        datom   (some-> set seq (set/seek from) first)]
+    (when (and (some? datom) (<= 0 (cmp to datom)))
+      datom)))
 
 ;; ----------------------------------------------------------------------------
 
 (defrecord TxReport [db-before db-after tx-data tempids tx-meta])
 
 (defn+ ^boolean is-attr? [db attr property]
-(contains? (-attrs-by db property) attr))
+  (contains? (-attrs-by db property) attr))
 
 (defn+ ^boolean multival? [db attr]
-(is-attr? db attr :db.cardinality/many))
+  (is-attr? db attr :db.cardinality/many))
 
 (defn+ ^boolean multi-value? [db attr value]
-(and
- (is-attr? db attr :db.cardinality/many)
- (or
-  (arrays/array? value)
-  (and (coll? value) (not (map? value))))))
+  (and
+   (is-attr? db attr :db.cardinality/many)
+   (or
+    (arrays/array? value)
+    (and (coll? value) (not (map? value))))))
 
 (defn+ ^boolean ref? [db attr]
-(is-attr? db attr :db.type/ref))
+  (is-attr? db attr :db.type/ref))
 
 (defn+ ^boolean component? [db attr]
   (is-attr? db attr :db/isComponent))
