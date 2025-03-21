@@ -15,23 +15,18 @@
     "tail" data
     "root" data
     (if (instance? set/Node data)
-      #js {:keys      (.-keys ^set/Node data)
-           :addresses (.-_addresses ^set/Node data)}
-      #js {:keys (.-keys ^set/Leaf data)})))
+      {:keys      (into [] (.-keys ^set/Node data))
+       :addresses (into [] (.-_addresses ^set/Node data))}
+      {:keys (into [] (.-keys ^set/Leaf data))})))
 
 (defn read-data
   [addr ^js data]
-  ;; messagepack prn actually way slower for deserializing from idb
-  ;; I think this prn because it copies the binary buffer into memory
-  ;; then we create js objects from it
-  ;; reading js objects must be really optimized from idb
-  ;; now for encrypted graphs, we will have to serialize it unfortunetly :(
   (case addr
     "tail" data
     "root" data
-    (let [keys (.-keys data)]
-      (if-some [addresses (.-addresses data)]
-        (set/Node. keys (arrays/make-array (arrays/alength addresses)) addresses)
+    (let [keys (into-array (:keys data))]
+      (if-some [addresses (:addresses data)]
+        (set/Node. keys (arrays/make-array (count addresses)) (into-array addresses))
         (set/Leaf. keys)))))
 
 
@@ -166,16 +161,15 @@
           (is (= 6 (count @(:*writes storage))))))) ;; root, tail + 2 leaves * 2 indexes
     ))
 
-#_
 (deftest test-gc
   (let [storage (make-storage {:stats true})]
     (let [db (large-db {:storage storage})]
       (d/store db)
-      (is (= 135 (count (d/addresses db))))
-      (is (= 135 (count (storage/-list-addresses storage))))
+      (is (= 19 (count (d/addresses db))))
+      (is (= 19 (count (storage/-list-addresses storage))))
       (is (= (d/addresses db) (set (storage/-list-addresses storage))))
       
-      (let [db' (d/db-with db [[:db/add 1001 :str "1001"]])]
+      (let [db' (d/db-with db [[:db/add 4001 :str "4001"]])]
         (d/store db')
         (is (> (count (storage/-list-addresses storage))
                (count (d/addresses db'))))
@@ -188,13 +182,14 @@
         (is (= 0 (count @(:*deletes storage))))))
     
     ;; if we lose other refs, GC will happen
+    (storage/fake-system-gc)
     (let [db'' (d/restore storage)]
       (d/collect-garbage storage)
       (is (= (d/addresses db'') (set (storage/-list-addresses storage))))
-      (is (= 6 (count @(:*deletes storage)))))
+      (is (= 4 (count @(:*deletes storage)))))
     
     (testing "don’t delete currently stored db"
-      (System/gc)
+      (storage/fake-system-gc)
       (d/collect-garbage storage)
       (is (pos? (count (storage/-list-addresses storage)))))))
 
@@ -261,9 +256,9 @@
         (is (> (count (storage/-list-addresses storage))
                (count (d/addresses (:db-last-stored @(:atom conn''))))))
 
-        ;; TODO: GC
-        #_#_
-        (d/collect-garbage storage)
+        (storage/fake-system-gc)
+        ;; we have to pass in the db because in the prev step we cleared it
+        (d/collect-garbage storage [(:db-last-stored @(:atom conn''))])
         (is (= (count (storage/-list-addresses storage))
                (count (d/addresses (:db-last-stored @(:atom conn''))))))
         

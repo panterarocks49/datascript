@@ -176,34 +176,35 @@
             (mp/recur (rest dbs)))))
       (persistent! @*set))))
 
-;; this doesn't work yet
+;; don't use this, this is for tests
+(defn fake-system-gc []
+  (set! stored-dbs (.map stored-dbs (fn [_] (js/WeakRef. #js [])))))
+
 (defn- read-stored-dbs [storage']
-  (let [iter ^Iterator (.iterator stored-dbs)]
-    (loop [res (transient [])]
-      (if (.hasNext iter)
-        (let [ref ^WeakReference (.next iter)
-              db  (.get ref)]
-          (cond
-            (nil? db)
-            (do
-              (.remove iter)
-              (recur res))
+  ;; remove all empty refs
+  (set! stored-dbs (.filter stored-dbs (fn [^js ref] (.deref ref))))
+  (mp/loop [dbs (into [] stored-dbs)
+            res (transient [])]
+    (if (seq dbs)
+      (let [ref (first dbs)
+            db  (.deref ^js ref)]
+        (if (and (db/db? db)
+                 (identical? (storage db) storage'))
+          (mp/recur (rest dbs) (conj! res db))
+          (mp/recur (rest dbs) res)))
+      (persistent! res))))
 
-            (identical? (storage db) storage')
-            (recur (conj! res db))
-
-            :else
-            (recur res)))
-        (persistent! res)))))
-
-(defn collect-garbage [storage']
-  ;; TODO: async-locking
-  (let [dbs    (conj
-                (read-stored-dbs storage')
-                (restore storage')) ;; make sure we won’t gc currently stored db
-        used   (addresses dbs)
-        all    (-list-addresses storage')
-        unused (into [] (remove used) all)]
-    (util/log "GC: found" (count dbs) "alive db refs," (count used) "used addrs," (count all) "total addrs," (count unused) "unused")
-    (-delete storage' unused)))
+(defn collect-garbage
+  ([storage']
+   (collect-garbage storage' []))
+  ([storage' extra-dbs]
+   (mp/locking storage'
+     (mp/let [dbs    (read-stored-dbs storage')
+              db     (restore storage')
+              dbs    (into (conj dbs db) extra-dbs) ;; make sure we won’t gc currently stored db
+              used   (addresses dbs)
+              all    (-list-addresses storage')
+              unused (into [] (remove used) all)]
+       (util/log "GC: found" (count dbs) "alive db refs," (count used) "used addrs," (count all) "total addrs," (count unused) "unused")
+       (-delete storage' unused)))))
 
