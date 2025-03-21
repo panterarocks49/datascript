@@ -68,32 +68,31 @@
   (.push stored-dbs (js/WeakRef. db)))
 
 (defn store-impl! [db ^StorageAdapter adapter force?]
-  (util/async-locking
-   (:storage adapter)
-   (p/do!
-    (remember-db db)
-    (let [store-buffer (volatile! (transient []))]
-      (set! (.-store-buffer adapter) store-buffer)
-      (p/let [eavt-addr (set/store (:eavt db) adapter)
-              aevt-addr (set/store (:aevt db) adapter)
-              avet-addr (set/store (:avet db) adapter)
-              meta (merge
-                    {:schema        (:schema db)
-                     :max-eid       (:max-eid db)
-                     :max-tx        (:max-tx db)
-                     :eavt          eavt-addr
-                     :aevt          aevt-addr
-                     :avet          avet-addr
-                     :eavt-metadata (set/set-metadata (:eavt db))
-                     :aevt-metadata (set/set-metadata (:aevt db))
-                     :avet-metadata (set/set-metadata (:avet db))}
-                    (set/settings (:eavt db)))]
-        (when (or force? (pos? (count @store-buffer)))
-          (vswap! store-buffer conj! [root-addr meta])
-          (vswap! store-buffer conj! [tail-addr []])
-          (-store (.-storage adapter) (persistent! @store-buffer)))
-        (set! (.-store-buffer adapter) nil)
-        db)))))
+  (mp/locking (:storage adapter)
+    (p/do!
+     (remember-db db)
+     (let [store-buffer (volatile! (transient []))]
+       (set! (.-store-buffer adapter) store-buffer)
+       (p/let [eavt-addr (set/store (:eavt db) adapter)
+               aevt-addr (set/store (:aevt db) adapter)
+               avet-addr (set/store (:avet db) adapter)
+               meta (merge
+                     {:schema        (:schema db)
+                      :max-eid       (:max-eid db)
+                      :max-tx        (:max-tx db)
+                      :eavt          eavt-addr
+                      :aevt          aevt-addr
+                      :avet          avet-addr
+                      :eavt-metadata (set/set-metadata (:eavt db))
+                      :aevt-metadata (set/set-metadata (:aevt db))
+                      :avet-metadata (set/set-metadata (:avet db))}
+                     (set/settings (:eavt db)))]
+         (when (or force? (pos? (count @store-buffer)))
+           (vswap! store-buffer conj! [root-addr meta])
+           (vswap! store-buffer conj! [tail-addr []])
+           (-store (.-storage adapter) (persistent! @store-buffer)))
+         (set! (.-store-buffer adapter) nil)
+         db)))))
 
 (defn store
   ([db]
