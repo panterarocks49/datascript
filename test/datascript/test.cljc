@@ -31,7 +31,7 @@
    datascript.test.query-pull
    datascript.test.query-return-map
    datascript.test.query-rules
-   #?(:clj datascript.test.storage)
+   datascript.test.storage
    datascript.test.transact
    datascript.test.tuples
    datascript.test.validation

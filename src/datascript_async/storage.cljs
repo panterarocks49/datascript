@@ -69,30 +69,30 @@
 
 (defn store-impl! [db ^StorageAdapter adapter force?]
   (mp/locking (:storage adapter)
-    (p/do!
-     (remember-db db)
-     (let [store-buffer (volatile! (transient []))]
-       (set! (.-store-buffer adapter) store-buffer)
-       (p/let [eavt-addr (set/store (:eavt db) adapter)
-               aevt-addr (set/store (:aevt db) adapter)
-               avet-addr (set/store (:avet db) adapter)
-               meta (merge
-                     {:schema        (:schema db)
-                      :max-eid       (:max-eid db)
-                      :max-tx        (:max-tx db)
-                      :eavt          eavt-addr
-                      :aevt          aevt-addr
-                      :avet          avet-addr
-                      :eavt-metadata (set/set-metadata (:eavt db))
-                      :aevt-metadata (set/set-metadata (:aevt db))
-                      :avet-metadata (set/set-metadata (:avet db))}
-                     (set/settings (:eavt db)))]
-         (when (or force? (pos? (count @store-buffer)))
-           (vswap! store-buffer conj! [root-addr meta])
-           (vswap! store-buffer conj! [tail-addr []])
-           (-store (.-storage adapter) (persistent! @store-buffer)))
-         (set! (.-store-buffer adapter) nil)
-         db)))))
+    (mp/do
+      (remember-db db)
+      (let [store-buffer (volatile! (transient []))]
+        (set! (.-store-buffer adapter) store-buffer)
+        (mp/let [eavt-addr (set/store (:eavt db) adapter)
+                 aevt-addr (set/store (:aevt db) adapter)
+                 avet-addr (set/store (:avet db) adapter)
+                 meta (merge
+                       {:schema        (:schema db)
+                        :max-eid       (:max-eid db)
+                        :max-tx        (:max-tx db)
+                        :eavt          eavt-addr
+                        :aevt          aevt-addr
+                        :avet          avet-addr
+                        :eavt-metadata (set/set-metadata (:eavt db))
+                        :aevt-metadata (set/set-metadata (:aevt db))
+                        :avet-metadata (set/set-metadata (:avet db))}
+                       (set/settings (:eavt db)))]
+          (when (or force? (pos? (count @store-buffer)))
+            (vswap! store-buffer conj! [root-addr meta])
+            (vswap! store-buffer conj! [tail-addr []])
+            (-store (.-storage adapter) (persistent! @store-buffer)))
+          (set! (.-store-buffer adapter) nil)
+          db)))))
 
 (defn store
   ([db]
@@ -114,23 +114,23 @@
 (defn restore-impl [storage opts]
   ;; TODO: do I need async-locking here?
   ;; not sure why it was used in the clojure impl
-  (p/let [root (-restore storage root-addr)]
+  (mp/let [root (-restore storage root-addr)]
     (when root
-      (p/let [tail    (-restore storage tail-addr)
-              {:keys [schema eavt aevt avet max-eid max-tx
-                      eavt-metadata aevt-metadata avet-metadata]} root
-              opts    (merge root opts)
-              adapter (make-storage-adapter storage)
-              eavt    (set/restore-by db/cmp-datoms-eavt eavt adapter (assoc opts :set-metadata eavt-metadata))
-              aevt    (set/restore-by db/cmp-datoms-aevt aevt adapter (assoc opts :set-metadata aevt-metadata))
-              avet    (set/restore-by db/cmp-datoms-avet avet adapter (assoc opts :set-metadata avet-metadata))
-              db      (db/restore-db
-                       {:schema  schema
-                        :eavt    eavt
-                        :aevt    aevt
-                        :avet    avet
-                        :max-eid max-eid
-                        :max-tx  max-tx})]
+      (mp/let [tail    (-restore storage tail-addr)
+               {:keys [schema eavt aevt avet max-eid max-tx
+                       eavt-metadata aevt-metadata avet-metadata]} root
+               opts    (merge root opts)
+               adapter (make-storage-adapter storage)
+               eavt    (set/restore-by db/cmp-datoms-eavt eavt adapter (assoc opts :set-metadata eavt-metadata))
+               aevt    (set/restore-by db/cmp-datoms-aevt aevt adapter (assoc opts :set-metadata aevt-metadata))
+               avet    (set/restore-by db/cmp-datoms-avet avet adapter (assoc opts :set-metadata avet-metadata))
+               db      (db/restore-db
+                        {:schema  schema
+                         :eavt    eavt
+                         :aevt    aevt
+                         :avet    avet
+                         :max-eid max-eid
+                         :max-tx  max-tx})]
         ;; TODO: read all branch nodes
         (set/-root eavt)
         (set/-root aevt)
@@ -153,24 +153,28 @@
   ([storage]
    (restore storage {}))
   ([storage opts]
-   (p/let [[db tail] (restore-impl storage opts)]
+   (mp/let [[db tail] (restore-impl storage opts)]
      (db-with-tail db tail))))
 
 (defn- addresses-impl [db visit-fn]
   {:pre [(db/db? db)]}
-  (p/do!
-   (set/-walk-addresses (:eavt db) visit-fn)
-   (set/-walk-addresses (:aevt db) visit-fn)
-   (set/-walk-addresses (:avet db) visit-fn)))
+  (mp/do
+    (set/-walk-addresses (:eavt db) visit-fn)
+    (set/-walk-addresses (:aevt db) visit-fn)
+    (set/-walk-addresses (:avet db) visit-fn)))
 
 (defn addresses [dbs]
   (let [*set     (volatile! (transient #{}))
         visit-fn #(vswap! *set conj! %)]
     (visit-fn root-addr)
     (visit-fn tail-addr)
-    (doseq [db dbs]
-      (addresses-impl db visit-fn))
-    (persistent! @*set)))
+    (mp/do
+      (mp/loop [dbs dbs]
+        (when (seq dbs)
+          (mp/do
+            (addresses-impl (first dbs) visit-fn)
+            (mp/recur (rest dbs)))))
+      (persistent! @*set))))
 
 ;; this doesn't work yet
 (defn- read-stored-dbs [storage']
