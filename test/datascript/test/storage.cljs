@@ -1,7 +1,8 @@
 (ns datascript.test.storage
   (:require
+   [promesa.core :as p]
    [clojure.edn :as edn]
-   [clojure.test :as t :refer [is are deftest testing async]]
+   [clojure.test :as t :refer [is are deftest testing async do-report]]
    [cognitect.transit :as transit]
    [me.tonsky.persistent-sorted-set-async :as set]
    [me.tonsky.persistent-sorted-set.arrays :as arrays]
@@ -53,8 +54,45 @@
       (when *deletes
         (vswap! *deletes conj addr)))))
 
+(defrecord AsyncStorage [*disk *reads *writes *deletes]
+  storage/IStorage
+  (-gen-addr [_ _node]
+    (str (random-uuid)))
+  (-accessed [_ _addr])
+  (-restore [_ addr]
+    (p/do!
+     (when *reads
+       (vswap! *reads conj addr))
+     (read-data addr (get @*disk addr))))
+
+  (-store [_ addr+data-seq]
+    (p/do!
+     (doseq [[addr data] addr+data-seq]
+       (vswap! *disk assoc addr (write-data addr data))
+       (when *writes
+         (vswap! *writes conj addr)))))
+  (-list-addresses [_]
+    (p/do!
+     (keys @*disk)))
+  (-delete [_ addrs-seq]
+    (p/do!
+     (doseq [addr addrs-seq]
+       (vswap! *disk dissoc addr)
+       (when *deletes
+         (vswap! *deletes conj addr))))))
+
 (defn make-storage [& [opts]]
   (map->Storage
+   {:*disk    (volatile! {})
+    :*reads   (when (:stats opts)
+                (volatile! []))
+    :*writes  (when (:stats opts)
+                (volatile! []))
+    :*deletes (when (:stats opts)
+                (volatile! []))}))
+
+(defn make-async-storage [& [opts]]
+  (map->AsyncStorage
    {:*disk    (volatile! {})
     :*reads   (when (:stats opts)
                 (volatile! []))
@@ -78,6 +116,89 @@
   (d/db-with
    (d/empty-db nil (merge {:branching-factor 1024, :ref-type :strong} opts))
    (map #(vector :db/add % :str (str %)) (range 1 4001))))
+
+(deftest test-async-storage
+  (async done
+    (-> (p/let [db      (large-db)
+                storage (make-async-storage {:stats true})]
+          (testing "store"
+            (p/do!
+             (d/store db storage)
+             (is (= 19 (count @(:*writes storage))))  ;; root, tail, avet root + 8 * 2 indexes
+
+             (d/store db)
+             (is (= 19 (count @(:*writes storage)))))) ;; store nothing if nothing changed
+
+          (testing "restore"
+            (p/let [db' (d/restore storage)]
+              (is (= 5 (count @(:*reads storage)))) ;; read root + tail + root idxs
+
+              (p/let [datoms (d/datoms db' :eavt 1)]
+                (is (= [1 :str "1"] (-> datoms first ((juxt :e :a :v)))))
+                (is (= 6 (count @(:*reads storage))))) ;; read 1 leaf
+
+              (p/let [datoms (d/datoms db' :eavt)]
+                (first datoms)
+                (is (= 12 (count @(:*reads storage))))) ;; read all leaves
+
+              (p/let [datoms (d/datoms db' :eavt)]
+                (vec datoms)
+                (is (= 12 (count @(:*reads storage))))) ;; second time no read
+
+              (p/let [eavt (seq (:eavt db))
+                      aevt (seq (:aevt db))
+                      avet (seq (:avet db))
+                      eavt' (seq (:eavt db'))
+                      aevt' (seq (:aevt db'))
+                      avet' (seq (:avet db'))]
+                (is (= db db'))
+                (is (= eavt eavt'))
+                (is (= aevt aevt'))
+                (is (= avet avet')))
+
+              (p/let [db (d/restore storage)]
+                (p/let [r (d/q
+                           '[:find ?e
+                             :where
+                             [?e :str _]
+                             [(< 1000 ?e 2001)]]
+                           db)]
+                  (is (= 1000 (count r))))
+
+                (p/let [p (d/pull db '[*] 1024)]
+                  (is (= "1024" (:str p)))))))
+
+          (testing "conn"
+            (p/let [conn (d/restore-conn storage)]
+              (d/transact! conn [[:db/add 1 :name "Ivan"]])
+              (is (= 20 (count @(:*writes storage))))
+              (is (= @#'storage/tail-addr (last @(:*writes storage))))
+              
+              ;; only writing tail
+              (d/transact! conn [[:db/add 2 :name "Oleg"]])
+              (is (= 21 (count @(:*writes storage))))
+              (is (= @#'storage/tail-addr (last @(:*writes storage))))
+              (is (= 2 (count (:tx-tail @(:atom conn)))))
+              (is (= 2 (count (apply concat (:tx-tail @(:atom conn))))))
+              
+              ;; bigger tx, still writing tail
+              (d/transact! conn (mapv #(vector :db/add % :name (str %)) (range 3 1025)))
+              (is (= 22 (count @(:*writes storage))))
+              (is (= @#'storage/tail-addr (last @(:*writes storage))))
+              (is (= 3 (count (:tx-tail @(:atom conn)))))
+              (is (= 1024 (count (apply concat (:tx-tail @(:atom conn))))))
+              
+              ;; tail overflows, flush db
+              (d/transact! conn [[:db/add 1025 :name "Petr"]])
+              (is (= 31 (count @(:*writes storage)))))))
+        (p/then #(done))
+        (p/catch (fn [e]
+                   ;; (js/console.error e)
+                   (do-report {:type     :error
+                               :message  "Async error occurred"
+                               :expected "No error"
+                               :actual   e})
+                   (done))))))
 
 (deftest test-basics
   (testing "empty db"
@@ -264,72 +385,6 @@
         
         (let [conn''' (d/restore-conn storage)]
           (is (= @conn'' @conn''')))))))
-
-#_
-(defn stress-test [{:keys [time branching-factor ref-type]
-                    :or {time             10000
-                         branching-factor 32
-                         ref-type         :weak}}]
-  (println "Stress-testing storage for" time "ms")
-  (let [storage    (make-storage {:stats false})
-        conn       (d/create-conn
-                    {:idx  {:db/index true}
-                     :name {:db/index true}}
-                    {:storage          storage
-                     :branching-factor branching-factor
-                     :ref-type         ref-type})
-        threads    (.availableProcessors (Runtime/getRuntime))
-        exec       (Executors/newFixedThreadPool (+ 2 threads))
-        *running?  (volatile! true)
-        bump       (fn [db]
-                     (let [op (:op (d/entity db 1))]
-                       [[:db/add 1 :op (inc (or op 0))]]))
-        *exception (volatile! nil)]
-    ;; transact threads
-    (dotimes [_ threads]
-      (.submit exec ^Runnable
-               (fn []
-                 (try
-                   (let [i (+ 2 (rand-int 100000))]
-                     (d/transact! conn
-                                  [[:db.fn/call bump]
-                                   {:db/id i
-                                    :idx   i
-                                    :name  (str i)}]))
-                   (catch Exception e
-                     (vreset! *exception e)
-                     (.printStackTrace e)))
-                 (when @*running?
-                   (recur)))))
-    ;; JVM GC thread
-    (.submit exec ^Runnable
-             (fn []
-               (Thread/sleep (long (rand-int 100)))
-               (System/gc)
-               (when @*running?
-                 (recur))))
-    ;; Storage GC
-    (.submit exec ^Runnable
-             (fn []
-               (Thread/sleep 1000)
-               (d/collect-garbage storage)
-               (when @*running?
-                 (recur))))
-    (Thread/sleep (long time))
-    (vreset! *running? false)
-    (.shutdown exec)
-    (println "  ops:" (:op (d/entity @conn 1)))
-    (println "  nodes:" (count @(:*disk storage)))
-    (println "  max idx:" (->> (d/datoms @conn :avet :idx) (rseq) (first) :v))
-    (println "  max name:" (->> (d/datoms @conn :avet :name) (rseq) (first) :v))
-    @*exception))
-
-;; (defn -main [& {:as opts}]
-;;   (let [opts' {:time             (some-> (opts "--time") Long/parseLong)
-;;                :branching-factor (some-> (opts "--branching-factor") Long/parseLong)
-;;                :ref-type         (some-> (opts "--ref-type") keyword)}]
-;;     (when (stress-test opts')
-;;       (System/exit 1))))
 
 (comment
   (t/test-ns *ns*)
