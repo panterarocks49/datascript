@@ -10,7 +10,8 @@
    [datascript-async.query :as dq]
    [datascript-async.impl.entity :as de]
    [datascript-async.util :as util]
-   [me.tonsky.persistent-sorted-set :as set])
+   #?(:clj [me.tonsky.persistent-sorted-set :as set]
+      :cljs [me.tonsky.persistent-sorted-set-async :as set]))
   #?(:clj
      (:import
       [datascript-async.db Datom DB FilteredDB]

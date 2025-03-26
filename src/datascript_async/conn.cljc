@@ -5,8 +5,7 @@
    [datascript-async.db :as db #?@(:cljs [:refer [DB FilteredDB]])]
    [datascript-async.storage :as storage]
    [datascript-async.util :as util]
-   [extend-clj.core :as extend]
-   [me.tonsky.persistent-sorted-set :as set])
+   [extend-clj.core :as extend])
   #?(:clj
      (:import
       [datascript-async.db DB FilteredDB])))

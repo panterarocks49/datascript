@@ -6,7 +6,8 @@
    [datascript-async.db :as db #?@(:cljs [:refer [DB]])]
    [datascript-async.lru :as lru]
    [datascript-async.util :as util]
-   [me.tonsky.persistent-sorted-set-async :as set])
+   #?(:clj [me.tonsky.persistent-sorted-set :as set]
+      :cljs [me.tonsky.persistent-sorted-set-async :as set]))
   #?(:clj
      (:import
       [clojure.lang ISeq]

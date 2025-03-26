@@ -1,6 +1,5 @@
 (ns datascript-async.storage
   (:require
-   [promesa.core :as p]
    [datascript-async.db :as db]
    [me.tonsky.maybe-promise :as mp]
    [datascript-async.util :as util]
@@ -9,15 +8,18 @@
 
 (defprotocol IStorage
   :extend-via-metadata true
-  (-gen-addr [_ node]
-    "Generate an address for a given node/leaf. Preferably a string but can be any object")
   (-accessed [_ addr]
     "Called when an address is accessed.")
-  (-store [_ addr+data-seq]
+  (-store [_ addr+node-seq]
     "Gives you a sequence of `[addr data]` pairs to serialize and store.
-     `addr`s are the return of -gen-addr.
+     `addr`s are either nil if it's an unstored node or
+       a past generated addr if it was already stored but was choosen to store again based on store-group-size
      `data`s are a node/leaf of the set
-     the exception to this is root and tail addrs, those will be clojure serializable structures")
+     the exception to this is root and tail addrs
+       They have special addrs \"root\" and \"tail\"
+       those will be clojure serializable structures
+     You need to return a list of addresses from this which correspond to
+     the addresses of the passed in nodes (in order)")
   (-restore [_ addr]
     "Read back and deserialize data stored under single `addr`")
   (-list-addresses [_]
@@ -32,21 +34,17 @@
 (def ^:private tail-addr
   "tail")
 
-(deftype StorageAdapter [storage ^:mutable store-buffer]
+(deftype StorageAdapter [storage]
   set.storage/IStorage
-  (store [_ node]
-    (let [addr (-gen-addr storage node)]
-      (util/log "store" addr)
-      (vswap! store-buffer conj! [addr node])
-      addr))
+  (store [_ addr+nodes]
+    (-store storage addr+nodes))
   (accessed [_ addr]
     (-accessed storage addr))
   (restore [_ addr]
-    (util/log "restore" addr)
     (-restore storage addr)))
 
 (defn make-storage-adapter [storage]
-  (StorageAdapter. storage nil))
+  (StorageAdapter. storage))
 
 (defn maybe-adapt-storage [opts]
   (if (:storage opts)
@@ -71,27 +69,30 @@
   (mp/locking (:storage adapter)
     (mp/do
       (remember-db db)
-      (let [store-buffer (volatile! (transient []))]
-        (set! (.-store-buffer adapter) store-buffer)
-        (mp/let [eavt-addr (set/store (:eavt db) adapter)
-                 aevt-addr (set/store (:aevt db) adapter)
-                 avet-addr (set/store (:avet db) adapter)
-                 meta (merge
-                       {:schema        (:schema db)
-                        :max-eid       (:max-eid db)
-                        :max-tx        (:max-tx db)
-                        :eavt          eavt-addr
-                        :aevt          aevt-addr
-                        :avet          avet-addr
-                        :eavt-metadata (set/set-metadata (:eavt db))
-                        :aevt-metadata (set/set-metadata (:aevt db))
-                        :avet-metadata (set/set-metadata (:avet db))}
-                       (set/settings (:eavt db)))]
-          (when (or force? (pos? (count @store-buffer)))
-            (vswap! store-buffer conj! [root-addr meta])
-            (vswap! store-buffer conj! [tail-addr []])
-            (-store (.-storage adapter) (persistent! @store-buffer)))
-          (set! (.-store-buffer adapter) nil)
+      (let [old-addrs  (mapv
+                        (fn [^set/BTSet s]
+                          (.-_address s))
+                        [(:eavt db) (:aevt db) (:avet db)])
+            ;; try to store in parallel
+            peavt-addr (set/store (:eavt db) adapter)
+            paevt-addr (set/store (:aevt db) adapter)
+            pavet-addr (set/store (:avet db) adapter)]
+        (mp/let [eavt-addr peavt-addr
+                 aevt-addr paevt-addr
+                 avet-addr pavet-addr
+                 meta      {:schema        (:schema db)
+                            :max-eid       (:max-eid db)
+                            :max-tx        (:max-tx db)
+                            :eavt          eavt-addr
+                            :aevt          aevt-addr
+                            :avet          avet-addr
+                            :eavt-metadata (set/set-metadata (:eavt db))
+                            :aevt-metadata (set/set-metadata (:aevt db))
+                            :avet-metadata (set/set-metadata (:avet db))
+                            :settings      (-> (set/settings (:eavt db))
+                                               (dissoc :make-reference :read-reference))}]
+          (when (or force? (some nil? old-addrs))
+            (-store (.-storage adapter) [[root-addr meta] [tail-addr []]]))
           db)))))
 
 (defn store
@@ -105,7 +106,7 @@
        (if (identical? current-storage storage)
          (store-impl! db adapter false)
          (throw (ex-info "Database is already stored with another IStorage" {:storage current-storage}))))
-     (let [adapter (StorageAdapter. storage nil)]
+     (let [adapter (StorageAdapter. storage)]
        (store-impl! db adapter false)))))
 
 (defn store-tail [db tail]
@@ -117,9 +118,9 @@
   (mp/let [root (-restore storage root-addr)]
     (when root
       (mp/let [tail    (-restore storage tail-addr)
-               {:keys [schema eavt aevt avet max-eid max-tx
+               {:keys [schema eavt aevt avet max-eid max-tx settings
                        eavt-metadata aevt-metadata avet-metadata]} root
-               opts    (merge root opts)
+               opts    (merge settings opts)
                adapter (make-storage-adapter storage)
                eavt    (set/restore-by db/cmp-datoms-eavt eavt adapter (assoc opts :set-metadata eavt-metadata))
                aevt    (set/restore-by db/cmp-datoms-aevt aevt adapter (assoc opts :set-metadata aevt-metadata))

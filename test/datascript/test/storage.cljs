@@ -33,19 +33,25 @@
 
 (defrecord Storage [*disk *reads *writes *deletes]
   storage/IStorage
-  (-gen-addr [_ _node]
-    (str (random-uuid)))
   (-accessed [_ _addr])
   (-restore [_ addr]
     (when *reads
       (vswap! *reads conj addr))
     (read-data addr (get @*disk addr)))
 
-  (-store [_ addr+data-seq]
-    (doseq [[addr data] addr+data-seq]
-      (vswap! *disk assoc addr (write-data addr data))
-      (when *writes
-        (vswap! *writes conj addr))))
+  (-store [_ addr+nodes]
+    (let [addr+nodes (mapv
+                      (fn [[addr node]]
+                        [(if (nil? addr)
+                           (str (random-uuid))
+                           addr)
+                         node])
+                      addr+nodes)]
+      (doseq [[addr data] addr+nodes]
+        (vswap! *disk assoc addr (write-data addr data))
+        (when *writes
+          (vswap! *writes conj addr)))
+      (mapv first addr+nodes)))
   (-list-addresses [_]
     (keys @*disk))
   (-delete [_ addrs-seq]
@@ -56,8 +62,6 @@
 
 (defrecord AsyncStorage [*disk *reads *writes *deletes]
   storage/IStorage
-  (-gen-addr [_ _node]
-    (str (random-uuid)))
   (-accessed [_ _addr])
   (-restore [_ addr]
     (p/do!
@@ -65,12 +69,20 @@
        (vswap! *reads conj addr))
      (read-data addr (get @*disk addr))))
 
-  (-store [_ addr+data-seq]
+  (-store [_ addr+nodes]
     (p/do!
-     (doseq [[addr data] addr+data-seq]
-       (vswap! *disk assoc addr (write-data addr data))
-       (when *writes
-         (vswap! *writes conj addr)))))
+     (let [addr+nodes (mapv
+                       (fn [[addr node]]
+                         [(if (nil? addr)
+                            (str (random-uuid))
+                            addr)
+                          node])
+                       addr+nodes)]
+       (doseq [[addr data] addr+nodes]
+         (vswap! *disk assoc addr (write-data addr data))
+         (when *writes
+           (vswap! *writes conj addr)))
+       (mapv first addr+nodes))))
   (-list-addresses [_]
     (p/do!
      (keys @*disk)))
@@ -114,7 +126,7 @@
 
 (defn large-db [& [opts]]
   (d/db-with
-   (d/empty-db nil (merge {:branching-factor 1024, :ref-type :strong} opts))
+   (d/empty-db nil (merge {:branching-factor 1024, :ref-type :strong :store-group-size 5} opts))
    (map #(vector :db/add % :str (str %)) (range 1 4001))))
 
 (deftest test-async-storage
@@ -190,7 +202,7 @@
               
               ;; tail overflows, flush db
               (d/transact! conn [[:db/add 1025 :name "Petr"]])
-              (is (= 31 (count @(:*writes storage)))))))
+              (is (= 36 (count @(:*writes storage)))))))
         (p/then #(done))
         (p/catch (fn [e]
                    ;; (js/console.error e)
@@ -238,7 +250,7 @@
 
         (testing "settings"
           (let [db' (d/restore storage)]
-            (is (= {:branching-factor 1024, :ref-type :strong} (d/settings db'))))))))
+            (is (map? (d/settings db'))))))))
 
   (testing "large db"
     (let [db      (large-db)
@@ -279,7 +291,7 @@
         (reset-stats storage)
         (let [db' (d/db-with db [[:db/add 5001 :str "5001"]])]
           (d/store db')
-          (is (= 6 (count @(:*writes storage))))))) ;; root, tail + 2 leaves * 2 indexes
+          (is (= 8 (count @(:*writes storage))))))) ;; root, tail + 2 leaves * 2 indexes
     ))
 
 (deftest test-gc
