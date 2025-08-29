@@ -18,7 +18,7 @@
   #?(:clj
      (:import
       [clojure.lang ILookup LazilyPersistentVector]
-      [datascript-async.parser BindColl BindIgnore BindScalar BindTuple
+      [datascript_async.parser BindColl BindIgnore BindScalar BindTuple
        Constant FindColl FindRel FindScalar FindTuple PlainSymbol
        RulesVar SrcVar Variable])))
 

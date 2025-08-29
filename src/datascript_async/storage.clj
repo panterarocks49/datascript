@@ -6,7 +6,7 @@
    [datascript-async.util :as util]
    [me.tonsky.persistent-sorted-set :as set])
   (:import
-   [datascript-async.db Datom]
+   [datascript_async.db Datom]
    [java.io BufferedOutputStream File FileOutputStream OutputStream PushbackReader] 
    [java.lang.ref WeakReference]
    [java.util ArrayList HashSet Iterator List]

@@ -3,7 +3,7 @@
    [datascript-async.db :as db]
    [clojure.pprint :as pp])
   (:import
-   [datascript-async.db Datom DB FilteredDB]))
+   [datascript_async.db Datom DB FilteredDB]))
 
 (defmethod pp/simple-dispatch Datom [^Datom d]
   (pp/pprint-logical-block

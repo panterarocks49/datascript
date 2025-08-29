@@ -11,8 +11,8 @@
   #?(:clj
      (:import
       [clojure.lang ISeq]
-      [datascript-async.db Datom DB]
-      [datascript.pull_parser PullAttr PullPattern])))
+      [datascript_async.db Datom DB]
+      [datascript_async.pull_parser PullAttr PullPattern])))
 
 (declare pull-impl attrs-frame ref-frame ->ReverseAttrsFrame)
 

@@ -8,7 +8,7 @@
    [extend-clj.core :as extend])
   #?(:clj
      (:import
-      [datascript-async.db DB FilteredDB])))
+      [datascript_async.db DB FilteredDB])))
 
 (extend/deftype-atom Conn [atom]
   (deref-impl [this]

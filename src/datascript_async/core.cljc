@@ -14,8 +14,8 @@
       :cljs [me.tonsky.persistent-sorted-set-async :as set]))
   #?(:clj
      (:import
-      [datascript-async.db Datom DB FilteredDB]
-      [datascript-async.impl.entity Entity]
+      [datascript_async.db Datom DB FilteredDB]
+      [datascript_async.impl.entity Entity]
       [java.util UUID])))
 
 (def ^:const ^:no-doc tx0

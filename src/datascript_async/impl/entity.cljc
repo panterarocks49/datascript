@@ -2,12 +2,14 @@
   (:refer-clojure :exclude [keys get])
   (:require
    [#?(:cljs cljs.core :clj clojure.core) :as c]
-   [promesa.core :as p]
+   #?(:cljs [promesa.core :as p])
    [me.tonsky.maybe-promise :as mp]
-   [datascript-async.util :as util]
-   [datascript-async.db :as db :refer [Datom]]))
+   [datascript-async.db :as db #?@(:cljs [:refer [Datom]])])
+  #?(:clj
+     (:import
+      [datascript_async.db Datom])))
 
-(declare entity Entity equiv-entity lookup-entity touch hash-entity)
+(declare entity ->Entity equiv-entity lookup-entity touch hash-entity)
 
 (defn- entid [db eid]
   (when (or (number? eid)
@@ -20,10 +22,10 @@
   (mp/let [e (entid db eid)]
     (when e
       ;; TODO: this is slower than seek, maybe impl seek?
-      (mp/let [edatoms (db/-datoms db :eavt eid nil nil nil)]
+      (mp/let [edatoms (db/-datoms db :eavt e nil nil nil)]
         (when-some [^Datom fdatom (first edatoms)]
           (when (== e (.-e fdatom))
-            (Entity. db e edatoms (volatile! false) (volatile! {}))))))))
+            (->Entity db e edatoms (volatile! false) (volatile! {}))))))))
 
 (defn- entity-attr [db a datoms]
   (if (db/multival? db a)
