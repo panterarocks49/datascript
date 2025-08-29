@@ -155,6 +155,7 @@
      (let [^PullPattern result result
            attrs       (.-attrs result)
            db-id?      (fn [^PullAttr attr] (#{:db/id ":db/id"} (.-name attr)))
+           ;; TODO: I think this works but it seems like it might not 100% match sorting in db
            key-fn      (fn [^PullAttr attr]
                          (let [name (:name attr)]
                            (cond

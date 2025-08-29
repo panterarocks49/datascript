@@ -371,15 +371,6 @@
    (defmacro case-tree [qs vs]
      (-case-tree qs vs)))
 
-(defn cmp
-  #?(:clj
-     {:inline
-      (fn [x y]
-        `(let [x# ~x y# ~y]
-           (if (nil? x#) 0 (if (nil? y#) 0 (long (compare x# y#))))))})
-  ^long [x y]
-  (if (nil? x) 0 (if (nil? y) 0 (long (compare x y)))))
-
 (defn class-identical?
   #?(:clj  {:inline (fn [x y] `(identical? (class ~x) (class ~y)))})
   [x y]
@@ -411,6 +402,54 @@
   #?(:clj  (. clojure.lang.Util (hasheq x))
      :cljs (hash x)))
 
+#?(:cljs
+   (def keyword-cache (js/Object.create nil)))
+
+;; copied and modified from clojure source, semantics are the same for clojure compatibility
+;; cache might be worse if you have a ton of database attributes
+#?(:cljs
+   (defn- compare-keywords [^Keyword a ^Keyword b]
+     (if (identical? a b)
+       0
+       (let [fqna (.-fqn a)
+             fqnb (.-fqn b)]
+         ;; Fast-path: same fqn => equal (no cache write; identical? is already fast)
+         (if (identical? fqna fqnb)
+           0
+           ;; Cache lookup (nested JS objects: cache[fqna][fqnb])
+           (let [^js row   (unchecked-get keyword-cache fqna)
+                 cached    (when row (unchecked-get row fqnb))]
+             (if cached
+               cached
+               (let [nsa (.-ns a)
+                     nsb (.-ns b)
+                     ;; Compute once, then store in cache both ways
+                     res (cond
+                           (and (not nsa) nsb)
+                           -1
+
+                           nsa
+                           (if nsb
+                             (let [nsc (garray/defaultCompare nsa nsb)]
+                               (if (== 0 nsc)
+                                 (garray/defaultCompare (.-name a) (.-name b))
+                                 nsc))
+                             1)
+
+                           :else
+                           (garray/defaultCompare (.-name a) (.-name b)))]
+                 ;; Initialize rows if missing and cache both (a,b) and (b,a)
+                 (let [^js row-a (or row (let [o (js/Object.create nil)]
+                                           (unchecked-set keyword-cache fqna o)
+                                           o))
+                       ^js row-b (or (unchecked-get keyword-cache fqnb)
+                                     (let [o (js/Object.create nil)]
+                                       (unchecked-set keyword-cache fqnb o)
+                                       o))]
+                   (unchecked-set row-a fqnb res)
+                   (unchecked-set row-b fqna (if (zero? res) 0 (- res))))
+                 res))))))))
+
 (declare+ ^number value-compare [x y])
 
 (defn- seq-compare [xs ys]
@@ -433,30 +472,46 @@
             (cond
               (and (nil? x) (nil? y))
               (recur (next xs) (next ys))
-                
+              
               (nil? x)
               -1
-                
+              
               (nil? y)
               1
-                
+              
               :else
               (let [v (value-compare x y)]
                 (if (= v 0)
                   (recur (next xs) (next ys))
                   v)))))))))
 
+;; in the jvm, it will error if you compare two different types
+;; in javascript not so much, so jvm checks only need a single
+;; because it will error out and then do a class compare
 (defn+ ^number value-compare [x y]
   (try
     (cond
-      (= x y) 0
+      ;; db is very likely to have a lot of refs, we check that first
+      ;; this speeds up avet index lookups a lot
+      #?@(:clj [(instance? Number x) (clojure.lang.Numbers/compare x y)]
+          :cljs [(and (number? x)
+                      (number? y))   (- x y)])
+      ;; sequential? in cljs is pretty slow, so we check strings and bool next (fast typeof check)
+      #?@(:clj [(instance? String x) (.compareTo ^String x ^String y)]
+          :cljs [(and (string? x)
+                      (string? y))   (garray/defaultCompare x y)])
+      #?@(:clj [(instance? Boolean x)            (Boolean/compare x y)]
+          :cljs [(and (or (true? x) (false? x))
+                      (or (true? y) (false? y))) (garray/defaultCompare x y)])
+      ;; not sure if = check is worth it, other checks should handle it?
+      ;; (= x y) 0
       (and (sequential? x) (sequential? y)) (seq-compare x y)
-      #?@(:clj  [(instance? Number x)       (clojure.lang.Numbers/compare x y)])
+      ;; fallback to generic compare, cljs WILL error out here if types aren't equal
       #?@(:clj  [(instance? Comparable x)   (.compareTo ^Comparable x y)]
           :cljs [(satisfies? IComparable x) (-compare x y)])
-      (not (class-identical? x y)) (class-compare x y)
-      #?@(:cljs [(or (number? x) (string? x) (array? x) (true? x) (false? x)) (garray/defaultCompare x y)])
-      :else (int-compare (ihash x) (ihash y)))
+      (not (class-identical? x y))          (class-compare x y)
+      #?@(:cljs [(array? x) (garray/defaultCompare x y)])
+      :else                                 (int-compare (ihash x) (ihash y)))
     (catch #?(:clj ClassCastException :cljs js/Error) e
       (if (not (class-identical? x y))
         (class-compare x y)
@@ -498,26 +553,54 @@
               (invokePrim [this# ~a1 ~a2]
                 (.compare this# ~a1 ~a2))))))))
 
+(defn cmp-attr
+  #?(:clj
+     {:inline
+      (fn [x y]
+        `(let [x# ~x
+               y# ~y]
+           (if (nil? x#)
+             0
+             (if (nil? y#)
+               0
+               ;; TODO: is this working right?
+               (long (.compareTo ^java.lang.Comparable x# y#))
+               #_
+               (long (.compareTo ~(with-meta x# {:tag "Comparable"}) ~y#))
+               #_
+               (long (compare x# y#))))))})
+  ^long [x y]
+  (if (nil? x)
+    0
+    (if (nil? y)
+      0
+      #?(:cljs
+         (if (keyword? x)
+           (compare-keywords x y)
+           (garray/defaultCompare x y))
+         :clj
+         (.compareTo ^Comparable x y)))))
+
 (defcomp cmp-datoms-eavt ^long [^Datom d1, ^Datom d2]
   (combine-cmp
    (int-compare (.-e d1) (.-e d2))
-   (cmp (.-a d1) (.-a d2))
+   (cmp-attr (.-a d1) (.-a d2))
    (value-cmp (.-v d1) (.-v d2))
    (int-compare (datom-tx d1) (datom-tx d2))))
 
 (defcomp cmp-datoms-aevt ^long [^Datom d1, ^Datom d2]
   (combine-cmp
-    (cmp (.-a d1) (.-a d2))
-    (int-compare (.-e d1) (.-e d2))
-    (value-cmp (.-v d1) (.-v d2))
-    (int-compare (datom-tx d1) (datom-tx d2))))
+   (cmp-attr (.-a d1) (.-a d2))
+   (int-compare (.-e d1) (.-e d2))
+   (value-cmp (.-v d1) (.-v d2))
+   (int-compare (datom-tx d1) (datom-tx d2))))
 
 (defcomp cmp-datoms-avet ^long [^Datom d1, ^Datom d2]
   (combine-cmp
-    (cmp (.-a d1) (.-a d2))
-    (value-cmp (.-v d1) (.-v d2))
-    (int-compare (.-e d1) (.-e d2))
-    (int-compare (datom-tx d1) (datom-tx d2))))
+   (cmp-attr (.-a d1) (.-a d2))
+   (value-cmp (.-v d1) (.-v d2))
+   (int-compare (.-e d1) (.-e d2))
+   (int-compare (datom-tx d1) (datom-tx d2))))
 
 ;; fast versions without nil checks
 
@@ -528,18 +611,21 @@
         `(long (.compareTo ~(with-meta a1 {:tag "Comparable"}) ~a2)))})
   ^long [a1 a2]
   ;; either both are keywords or both are strings
+  ;; Josh: this must mean that the entire database either has to be strings or keywords, which is not what I thought
+  ;;    I think we could probably remove this if it would speed things up
+  ;;    you also can't compare keywords to strs in jvm easily either .compareTo doesn't work to compare them
   #?(:cljs
      (if (keyword? a1)
-       (-compare a1 a2)
+       (compare-keywords a1 a2)
        (garray/defaultCompare a1 a2))
      :clj
      (.compareTo ^Comparable a1 a2)))
 
 (defcomp cmp-datoms-eav-quick ^long [^Datom d1, ^Datom d2]
   (combine-cmp
-    (int-compare (.-e d1) (.-e d2))
-    (cmp-attr-quick (.-a d1) (.-a d2))
-    (value-compare (.-v d1) (.-v d2))))
+   (int-compare (.-e d1) (.-e d2))
+   (cmp-attr-quick (.-a d1) (.-a d2))
+   (value-compare (.-v d1) (.-v d2))))
 
 (defcomp cmp-datoms-eavt-quick ^long [^Datom d1, ^Datom d2]
   (combine-cmp
@@ -550,17 +636,17 @@
 
 (defcomp cmp-datoms-aevt-quick ^long [^Datom d1, ^Datom d2]
   (combine-cmp
-    (cmp-attr-quick (.-a d1) (.-a d2))
-    (int-compare (.-e d1) (.-e d2))
-    (value-compare (.-v d1) (.-v d2))
-    (int-compare (datom-tx d1) (datom-tx d2))))
+   (cmp-attr-quick (.-a d1) (.-a d2))
+   (int-compare (.-e d1) (.-e d2))
+   (value-compare (.-v d1) (.-v d2))
+   (int-compare (datom-tx d1) (datom-tx d2))))
 
 (defcomp cmp-datoms-avet-quick ^long [^Datom d1, ^Datom d2]
   (combine-cmp
-    (cmp-attr-quick (.-a d1) (.-a d2))
-    (value-compare (.-v d1) (.-v d2))
-    (int-compare (.-e d1) (.-e d2))
-    (int-compare (datom-tx d1) (datom-tx d2))))
+   (cmp-attr-quick (.-a d1) (.-a d2))
+   (value-compare (.-v d1) (.-v d2))
+   (int-compare (.-e d1) (.-e d2))
+   (int-compare (datom-tx d1) (datom-tx d2))))
 
 (defn- diff-sorted [a b cmp]
   (loop [only-a []
@@ -1020,20 +1106,36 @@
     res))
 
 (defn ^DB init-db [datoms schema opts]
+  ;; TODO: speed up like how load-all-indexes-works
   (when-some [not-datom (first (drop-while datom? datoms))]
     (util/raise "init-db expects list of Datoms, got " (type not-datom)
                 {:error :init-db}))
   (validate-schema schema)
   (let [rschema     (rschema (merge implicit-schema schema))
         indexed     (:db/index rschema)
+        indexed-set #?(:cljs (->> indexed
+                                  (mapv (fn [attribute]
+                                          (if (keyword? attribute)
+                                            (.-fqn ^js attribute)
+                                            attribute)))
+                                  into-array
+                                  (js/Set.))
+                       :clj  (set indexed))
         arr         (cond-> datoms
                       (not (arrays/array? datoms)) (arrays/into-array))
         _           (arrays/asort arr cmp-datoms-eavt-quick)
         eavt        (set/from-sorted-array cmp-datoms-eavt arr (arrays/alength arr) opts)
         _           (arrays/asort arr cmp-datoms-aevt-quick)
         aevt        (set/from-sorted-array cmp-datoms-aevt arr (arrays/alength arr) opts)
-        avet-datoms (filter (fn [^Datom d] (contains? indexed (.-a d))) datoms)
-        avet-arr    (to-array avet-datoms)
+        avet-arr    #?(:cljs (.filter arr (fn [^Datom d]
+                                            (let [attribute (.-a d)
+                                                  a (if (keyword? attribute)
+                                                      (.-fqn ^js attribute)
+                                                      attribute)]
+                                              (.has indexed-set a))))
+                       :clj (->> datoms
+                                 (filter (fn [^Datom d] (indexed-set (.-a d))))
+                                 into-array))
         _           (arrays/asort avet-arr cmp-datoms-avet-quick)
         avet        (set/from-sorted-array cmp-datoms-avet avet-arr (arrays/alength avet-arr) opts)
         ;; since the set is maybe async, it won't ever be async for this call
@@ -1051,6 +1153,60 @@
       :pull-patterns (lru/cache 100)
       :pull-attrs    (lru/cache 100)
       :hash          (atom 0)})))
+
+(defn load-all-indexes [db]
+  (mp/let [eavt   (:eavt db)
+           datoms (seq eavt)]
+    (let [opts        {}
+          rschema     (:rschema db)
+          indexed     (:db/index rschema)
+          indexed-set #?(:cljs (->> indexed
+                                    (mapv (fn [attribute]
+                                            (if (keyword? attribute)
+                                              (.-fqn ^js attribute)
+                                              attribute)))
+                                    into-array
+                                    (js/Set.))
+                         :clj  (set indexed))
+          arr         (time (arrays/into-array datoms))
+          _ (prn "aevt")
+          arr-copy    (arrays/aclone arr)
+          ;; _           (time (arrays/asort arr-copy cmp-datoms-aevt-quick2))
+          ;; _           (time (arrays/asort (arrays/aclone arr) cmp-datoms-aevt))
+          _           (time (arrays/asort arr cmp-datoms-aevt-quick))
+          aevt        (set/from-sorted-array cmp-datoms-aevt arr (arrays/alength arr) opts)
+          _ (prn "eavt")
+          arr-copy    (arrays/aclone arr)
+          ;; _           (time (arrays/asort arr-copy cmp-datoms-eavt-quick2))
+          ;; _           (time (arrays/asort (arrays/aclone arr) cmp-datoms-eavt))
+          _           (time (arrays/asort arr cmp-datoms-eavt-quick))
+          avet-arr    (time
+                       #?(:cljs (.filter arr (fn [^Datom d]
+                                               (let [attribute (.-a d)
+                                                     a (if (keyword? attribute)
+                                                         (.-fqn ^js attribute)
+                                                         attribute)]
+                                                 (.has indexed-set a))))
+                          :clj (->> datoms
+                                    (filter (fn [^Datom d] (indexed-set (.-a d))))
+                                    into-array)))
+          _ (prn "avet")
+          avet-arr-copy (arrays/aclone avet-arr)
+          ;; _           (time (arrays/asort avet-arr-copy cmp-datoms-avet-quick2))
+          ;; _           (time (arrays/asort (arrays/aclone arr) cmp-datoms-avet))
+          _           (time (arrays/asort avet-arr cmp-datoms-avet-quick))
+          avet        (set/from-sorted-array cmp-datoms-avet avet-arr (arrays/alength avet-arr) opts)]
+      (map->DB
+       {:schema        (:schema db)
+        :rschema       rschema
+        :eavt          eavt
+        :aevt          aevt
+        :avet          avet
+        :max-eid       (:max-eid db)
+        :max-tx        (:max-tx db)
+        :pull-patterns (lru/cache 100)
+        :pull-attrs    (lru/cache 100)
+        :hash          (atom 0)}))))
 
 (defn+ restore-db ^DB [{:keys [schema eavt aevt avet max-eid max-tx] :as keys}]
   (map->DB
