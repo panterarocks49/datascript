@@ -1,28 +1,29 @@
-(ns datascript.pprint
+(ns datascript-async.pprint
   (:require
-    [datascript.db :as db]
-    [clojure.pprint :as pp])
+   [datascript-async.db :as db]
+   [clojure.pprint :as pp])
   (:import
-    [datascript.db Datom DB FilteredDB]))
+   [datascript_async.db Datom DB FilteredDB]))
 
 (defmethod pp/simple-dispatch Datom [^Datom d]
-  (pp/pprint-logical-block :prefix "#datascript/Datom [" :suffix "]"
-    (pp/write-out (.-e d))
-    (.write ^java.io.Writer *out* " ")
-    (pp/pprint-newline :linear)
-    (pp/write-out (.-a d))
-    (.write ^java.io.Writer *out* " ")
-    (pp/pprint-newline :linear)
-    (pp/write-out (.-v d))
-    (.write ^java.io.Writer *out* " ")
-    (pp/pprint-newline :linear)
-    (pp/write-out (db/datom-tx d))
-    (.write ^java.io.Writer *out* " ")
-    (pp/pprint-newline :linear)
-    (pp/write-out (db/datom-added d))))
+  (pp/pprint-logical-block
+   :prefix "#datascript/Datom [" :suffix "]"
+   (pp/write-out (.-e d))
+   (.write ^java.io.Writer *out* " ")
+   (pp/pprint-newline :linear)
+   (pp/write-out (.-a d))
+   (.write ^java.io.Writer *out* " ")
+   (pp/pprint-newline :linear)
+   (pp/write-out (.-v d))
+   (.write ^java.io.Writer *out* " ")
+   (pp/pprint-newline :linear)
+   (pp/write-out (db/datom-tx d))
+   (.write ^java.io.Writer *out* " ")
+   (pp/pprint-newline :linear)
+   (pp/write-out (db/datom-added d))))
 
 (defn- pp-db [db ^java.io.Writer w]
-  (pp/pprint-logical-block :prefix "#datascript/DB {" :suffix "}"
+  (pp/pprint-logical-block :prefix "#datascript-async.db {" :suffix "}"
     (pp/pprint-logical-block
       (pp/write-out :schema)
       (.write w " ")
@@ -50,3 +51,4 @@
 
 (defmethod pp/simple-dispatch FilteredDB [db]
   (pp-db db *out*))
+

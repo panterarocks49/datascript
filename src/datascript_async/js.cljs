@@ -1,12 +1,11 @@
-(ns ^:no-doc datascript.js
+(ns ^:no-doc datascript-async.js
   (:refer-clojure :exclude [filter])
   (:require
-    [cljs.reader]
-    [goog.object :as go]
-    [clojure.walk :as walk]
-    [datascript.conn :as conn]
-    [datascript.core :as d]
-    [datascript.serialize :as serialize]))
+   [cljs.reader]
+   [goog.object :as go]
+   [clojure.walk :as walk]
+   [datascript-async.conn :as conn]
+   [datascript-async.core :as d]))
 
 ;; Conversions
 
@@ -80,9 +79,6 @@
 
 (defn ^:export init_db [datoms & [schema]]
   (d/init-db (map js->Datom datoms) (schema->clj schema)))
-
-(def ^:export serializable #(serialize/serializable % {:freeze-kw identity}))
-(def ^:export from_serializable #(serialize/from-serializable % {:thaw-kw identity}))
 
 (defn ^:export q [query & sources]
   (let [query   (cljs.reader/read-string query)

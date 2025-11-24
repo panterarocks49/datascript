@@ -83,11 +83,11 @@ Downsides:
 
 This way pretends we are a real database and does things most optimally: incremental and lazy, just like the big boys. But only on JVM, at least for now. The rest of the article will discuss this approach.
 
-Storing database is easy. First, you have to implement `datascript.storage/IStorage` protocol:
+Storing database is easy. First, you have to implement `datascript-async.storage/IStorage` protocol:
 
 ```
 (def storage
-  (reify datascript.storage/IStorage
+  (reify datascript-async.storage/IStorage
     (-store [_ addr+data-seq]
       (doseq [[addr data] addr+data-seq]
         ... serialize and store <addr> -> <data> somehow ...))
@@ -215,7 +215,7 @@ Also, remember, it’s never safe to write to file system yourself. Always do it
 
 ## SQL Storage
 
-See https://github.com/tonsky/datascript-storage-sql
+See https://github.com/tonsky/datascript-async.storage-sql
 
 ## Garbage collection
 

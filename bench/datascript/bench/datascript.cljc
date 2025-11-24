@@ -1,6 +1,6 @@
 (ns datascript.bench.datascript
   (:require
-   [datascript.core :as d]
+   [datascript-async.core :as d]
    [datascript.bench.bench :as bench]
    #?(:clj [jsonista.core :as jsonista])))
 

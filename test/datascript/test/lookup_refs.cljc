@@ -1,12 +1,12 @@
 (ns datascript.test.lookup-refs
   (:require
-    [clojure.test :as t :refer [is are deftest testing]]
-    [datascript.core :as d]
-    [datascript.db :as db]
-    [datascript.test.core :as tdc])
+   [clojure.test :as t :refer [is are deftest testing]]
+   [datascript-async.core :as d]
+   [datascript-async.db :as db]
+   [datascript.test.core :as tdc])
   #?(:clj
      (:import
-       [clojure.lang ExceptionInfo])))
+      [clojure.lang ExceptionInfo])))
 
 (deftest test-lookup-refs
   (let [db (d/db-with (d/empty-db {:name  {:db/unique :db.unique/identity}

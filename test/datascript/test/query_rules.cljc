@@ -1,9 +1,9 @@
 (ns datascript.test.query-rules
   (:require
-    [clojure.test :as t :refer [is are deftest testing]]
-    [datascript.core :as d]
-    [datascript.db :as db]
-    [datascript.test.core :as tdc]))
+   [clojure.test :as t :refer [is are deftest testing]]
+   [datascript-async.core :as d]
+   [datascript-async.db :as db]
+   [datascript.test.core :as tdc]))
 
 (deftest test-rules
   (let [db [                  [5 :follow 3]

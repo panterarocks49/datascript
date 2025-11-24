@@ -1,8 +1,11 @@
-(ns datascript.util
+(ns datascript-async.util
   (:refer-clojure :exclude [find])
+  (:require
+   [promesa.core :as p]
+   [me.tonsky.maybe-promise :as mp])
   #?(:clj
      (:import
-       [java.util UUID])))
+      [java.util UUID])))
 
 (def ^:dynamic *debug*
   false)
@@ -21,33 +24,33 @@
 
 #?(:clj
    (def ^:private ^:dynamic *if+-syms))
-  
+
 #?(:clj
    (defn- if+-rewrite-cond-impl [cond]
      (clojure.core/cond
        (empty? cond)
        true
-    
+       
        (and
-         (= :let (first cond))
-         (empty? (second cond)))
+        (= :let (first cond))
+        (empty? (second cond)))
        (if+-rewrite-cond-impl (nnext cond))
-    
+       
        (= :let (first cond))
        (let [[var val & rest] (second cond)
              sym                (gensym)]
          (vswap! *if+-syms conj [var sym])
          (list 'let [var (list 'clojure.core/vreset! sym val)]
-           (if+-rewrite-cond-impl
-             (cons 
-               :let
-               (cons rest
-                 (nnext cond))))))
-    
+               (if+-rewrite-cond-impl
+                   (cons 
+                    :let
+                    (cons rest
+                          (nnext cond))))))
+       
        :else
        (list 'and
-         (first cond)
-         (if+-rewrite-cond-impl (next cond))))))
+             (first cond)
+             (if+-rewrite-cond-impl (next cond))))))
 
 #?(:clj
    (defn- if+-rewrite-cond [cond]
@@ -101,9 +104,10 @@
    (defmacro cond+ [& clauses]
      (when-some [[test expr & rest] clauses]
        (case test
-         :do   `(do ~expr (util/cond+ ~@rest))
-         :let  `(let ~expr (util/cond+ ~@rest))
-         :some `(or ~expr (util/cond+ ~@rest))
+         :do    `(do ~expr (util/cond+ ~@rest))
+         :let   `(let ~expr (util/cond+ ~@rest))
+         :mplet `(mp/let ~expr (util/cond+ ~@rest))
+         :some  `(or ~expr (util/cond+ ~@rest))
          `(util/if+ ~test ~expr (util/cond+ ~@rest))))))
 
 #?(:clj
@@ -212,11 +216,12 @@
   "Same as reduce, but `f` takes [acc el idx]"
   [f init xs]
   (first
-    (reduce
-      (fn [[acc idx] x]
-        (let [res (f acc x idx)]
-          (if (reduced? res)
-            (reduced [res idx])
-            [res (inc idx)])))
-      [init 0]
-      xs)))
+   (reduce
+    (fn [[acc idx] x]
+      (let [res (f acc x idx)]
+        (if (reduced? res)
+          (reduced [res idx])
+          [res (inc idx)])))
+    [init 0]
+    xs)))
+

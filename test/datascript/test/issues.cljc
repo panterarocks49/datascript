@@ -1,7 +1,7 @@
 (ns datascript.test.issues
   (:require
-    [datascript.core :as ds]
-    [clojure.test :as t :refer [is are deftest testing]]))
+   [datascript-async.core :as ds]
+   [clojure.test :as t :refer [is are deftest testing]]))
 
 (deftest ^{:doc "CLJS `apply` + `vector` will hold onto mutable array of arguments directly"}
   issue-262

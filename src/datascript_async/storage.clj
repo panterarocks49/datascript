@@ -1,16 +1,16 @@
-(ns datascript.storage
+(ns datascript-async.storage
   (:require
-    [clojure.edn :as edn]
-    [clojure.java.io :as io]
-    [datascript.db :as db]
-    [datascript.util :as util]
-    [me.tonsky.persistent-sorted-set :as set])
+   [clojure.edn :as edn]
+   [clojure.java.io :as io]
+   [datascript-async.db :as db]
+   [datascript-async.util :as util]
+   [me.tonsky.persistent-sorted-set :as set])
   (:import
-    [datascript.db Datom]
-    [java.io BufferedOutputStream File FileOutputStream OutputStream PushbackReader] 
-    [java.lang.ref WeakReference]
-    [java.util ArrayList HashSet Iterator List]
-    [me.tonsky.persistent_sorted_set ANode Branch Leaf PersistentSortedSet RefType Settings]))
+   [datascript_async.db Datom]
+   [java.io BufferedOutputStream File FileOutputStream OutputStream PushbackReader] 
+   [java.lang.ref WeakReference]
+   [java.util ArrayList HashSet Iterator List]
+   [me.tonsky.persistent_sorted_set ANode Branch Leaf PersistentSortedSet RefType Settings]))
 
 (defprotocol IStorage
   :extend-via-metadata true

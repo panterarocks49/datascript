@@ -1,24 +1,24 @@
-(ns datascript.core
+(ns datascript-async.core
   (:refer-clojure :exclude [filter])
   (:require
-    [#?(:cljs cljs.reader :clj clojure.edn) :as edn]
-    [datascript.conn :as conn]
-    [datascript.db :as db #?@(:cljs [:refer [Datom DB FilteredDB]])]
-    #?(:clj [datascript.pprint])
-    [datascript.pull-api :as dp]
-    [datascript.serialize :as ds]
-    [datascript.storage :as storage]
-    [datascript.query :as dq]
-    [datascript.impl.entity :as de]
-    [datascript.util :as util]
-    [me.tonsky.persistent-sorted-set :as set])
+   [#?(:cljs cljs.reader :clj clojure.edn) :as edn]
+   [datascript-async.conn :as conn]
+   [datascript-async.db :as db #?@(:cljs [:refer [Datom DB FilteredDB]])]
+   #?(:clj [datascript-async.pprint])
+   [datascript-async.pull-api :as dp]
+   [datascript-async.storage :as storage]
+   [datascript-async.query :as dq]
+   [datascript-async.impl.entity :as de]
+   [datascript-async.util :as util]
+   #?(:clj [me.tonsky.persistent-sorted-set :as set]
+      :cljs [me.tonsky.persistent-sorted-set-async :as set]))
   #?(:clj
      (:import
-       [datascript.db Datom DB FilteredDB]
-       [datascript.impl.entity Entity]
-       [java.util UUID])))
+      [datascript_async.db Datom DB FilteredDB]
+      [datascript_async.impl.entity Entity]
+      [java.util UUID])))
 
-(def ^:const ^:no-doc tx0 
+(def ^:const ^:no-doc tx0
   db/tx0)
 
 
@@ -76,11 +76,12 @@
              - When printing, only cached attributes (the ones you have accessed before) are printed. See [[touch]]."}
   entity de/entity)
 
-(def ^{:arglists '([db eid])
-       :doc "Given lookup ref `[unique-attr value]`, returns numberic entity id.
+(defn entid
+  "Given lookup ref `[unique-attr value]`, returns numberic entity id.
 
-             If entity does not exist, returns `nil`."}
-  entid db/entid)
+   If entity does not exist, returns `nil`."
+  [db eid]
+  (db/entid db eid))
 
 (defn ^DB entity-db
   "Returns a db that entity was created from."
@@ -154,10 +155,10 @@
    Usage:
    
    ```
-   (empty-db) ; => #datascript/DB {:schema {}, :datoms []}
+   (empty-db) ; => #datascript-async.db {:schema {}, :datoms []}
 
    (empty-db {:likes {:db/cardinality :db.cardinality/many}})
-   ; => #datascript/DB {:schema {:likes {:db/cardinality :db.cardinality/many}}
+   ; => #datascript-async.db {:schema {:likes {:db/cardinality :db.cardinality/many}}
    ;                    :datoms []}
    ```
    
@@ -203,32 +204,6 @@
    (db/init-db datoms schema {}))
   ([datoms schema opts]
    (db/init-db datoms schema (storage/maybe-adapt-storage opts))))
-
-(def ^{:arglists '([db] [db opts])
-       :doc "Converts db into a data structure (not string!) that can be fed to serializer
-             of your choice (e.g. `js/JSON.stringify` in CLJS, `cheshire.core/generate-string`
-             or `jsonista.core/write-value-as-string` in CLJ).
-
-             On JVM, `serializable` holds a global lock that prevents any two serializations
-             to run in parallel (an implementation constraint, be aware).
-
-             Options:
-
-             `:freeze-fn` Non-primitive values will be serialized using this. Optional.
-             `pr-str` by default."}
-  serializable ds/serializable)
-
-(def ^{:tag DB
-       :arglists '([serializable] [serializable opts])
-       :doc "Creates db from a data structure (not string!) produced by serializable.
-
-             Opts:
-
-             `:thaw-fn` Non-primitive values will be deserialized using this.
-             Must match :freeze-fn from serializable. Optional. `clojure.edn/read-string`
-             by default."}
-  from-serializable ds/from-serializable)
-
 
 ; Schema
 
@@ -441,7 +416,7 @@
 ;; Conn
 
 (def ^{:arglists '([conn])} conn?
-  "Returns `true` if this is a connection to a DataScript db, `false` otherwise."
+  "Returns `true` if this is a connection to a datascript-async.db, `false` otherwise."
   conn/conn?)
 
 (def ^{:arglists '([db])} conn-from-db
@@ -464,11 +439,10 @@
    If you specify `:storage` option, conn will be stored automatically after each transaction"
   conn/create-conn)
 
-#?(:clj
-   (def ^{:arglists '([storage] [storage opts])} restore-conn
-     "Lazy-load database from storage and make conn out of it.
+(def ^{:arglists '([storage] [storage opts])} restore-conn
+  "Lazy-load database from storage and make conn out of it.
       Returns nil if there’s no database yet in storage"
-     conn/restore-conn))
+  conn/restore-conn)
 
 (def ^{:arglists '([conn tx-data] [conn tx-data tx-meta])} transact!
   "Applies transaction the underlying database value and atomically updates connection reference to point to the result of that transaction, new db value.
@@ -586,7 +560,7 @@
              (clojure.edn/read-string {:readers data-readers} \"...\")
              ```"}
   data-readers {'datascript/Datom db/datom-from-reader
-                'datascript/DB    db/db-from-reader})
+                'datascript-async.db    db/db-from-reader})
 
 #?(:cljs
    (doseq [[tag cb] data-readers] (edn/register-tag-parser! tag cb)))
@@ -688,38 +662,33 @@
 
 
 ;; Storage
-#?(:clj
-   (def ^{:arglists '([db])} storage
-     "Returns IStorage used by DB instance"
-     storage/storage))
+(def ^{:arglists '([db])} storage
+  "Returns IStorage used by DB instance"
+  storage/storage)
 
-#?(:clj
-   (def ^{:arglists '([db] [db storage])} store
-     "Stores databases to provided storage. If database was created
+(def ^{:arglists '([db] [db storage])} store
+  "Stores databases to provided storage. If database was created
       with :storage option or restored from storage, use single-argument version.
-      
+
       Subsequent stores are incremental, i.e. only newly added nodes will be actually stored.
-      
+
       Storing already stored dbs into another storage is not supported (may change)."
-     storage/store))
+  storage/store)
 
-#?(:clj 
-   (def ^{:arglists '([storage] [storage opts])} restore
-     "Lazy-loads database from storage. Ultra-fast, fetches the rest as it’s needed"
-     storage/restore))
+(def ^{:arglists '([storage] [storage opts])} restore
+  "Lazy-loads database from storage. Ultra-fast, fetches the rest as it’s needed"
+  storage/restore)
 
-#?(:clj
-   (defn addresses
-     "Returns all addresses in use by current db (as java.util.HashSet).
+(defn addresses
+  "Returns all addresses in use by current db (as java.util.HashSet).
       Anything that is not in the return set is safe to be deleted"
-     [& dbs]
-     (storage/addresses dbs)))
+  [& dbs]
+  (storage/addresses dbs))
 
-#?(:clj
-   (def ^{:arglists '([storage])} collect-garbage
-     "Deletes all keys from storage that are not referenced by any of the currently alive db refs.
+(def ^{:arglists '([storage])} collect-garbage
+  "Deletes all keys from storage that are not referenced by any of the currently alive db refs.
       Has a side-effect of fully loading databases fully into memory, so, can be slow"
-     storage/collect-garbage))
+  storage/collect-garbage)
 
 #?(:clj
    (def ^{:arglists '([dir] [dir opts])} file-storage

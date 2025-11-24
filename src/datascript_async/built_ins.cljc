@@ -1,9 +1,9 @@
-(ns datascript.built-ins
+(ns datascript-async.built-ins
   (:require
-    [clojure.string :as str]
-    [datascript.db :as db]
-    [datascript.impl.entity :as de]
-    [datascript.util :as util]))
+   [clojure.string :as str]
+   [datascript-async.db :as db]
+   [datascript-async.impl.entity :as de]
+   [datascript-async.util :as util]))
 
 (defn- -differ? [& xs]
   (let [l (count xs)]

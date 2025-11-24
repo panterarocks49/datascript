@@ -1,7 +1,7 @@
 (ns datascript.test.ident
   (:require
-    [clojure.test :as t :refer [is are deftest testing]]
-    [datascript.core :as d]))
+   [clojure.test :as t :refer [is are deftest testing]]
+   [datascript-async.core :as d]))
 
 (def *db
   (delay

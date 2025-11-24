@@ -1,10 +1,10 @@
 (ns datascript.test.pull-parser
   (:require
-    [clojure.test :as t :refer [is are deftest testing]]
-    [datascript.core :as d]
-    [datascript.db :as db]
-    [datascript.pull-parser :as dpp]
-    [datascript.test.core :as tdc]))
+   [clojure.test :as t :refer [is are deftest testing]]
+   [datascript-async.core :as d]
+   [datascript-async.db :as db]
+   [datascript-async.pull-parser :as dpp]
+   [datascript.test.core :as tdc]))
 
 (def *db
   (delay
@@ -40,24 +40,24 @@
     [[:normal]]  (pattern :attrs [(attr :normal)])
     [:db/id]     (pattern :attrs [(attr :db/id)])
 
-    ; wildcards
+; wildcards
     ['*]         (pattern :attrs [(attr :db/id)] :wildcard? true)
     ["*"]        (pattern :attrs [(attr :db/id)] :wildcard? true)
     ['* :normal] (pattern :attrs [(attr :normal) (attr :db/id)] :wildcard? true)
     ['* :db/id]  (pattern :attrs [(attr :db/id)] :wildcard? true)
     ['* [:db/id :as :xxx]] (pattern :attrs [(attr :db/id :as :xxx)] :wildcard? true)
 
-    ; refs
+; refs
     [:ref]        (pattern :attrs [(attr :ref, :ref? true)])
     [:_ref]       (pattern :reverse-attrs [(attr :ref, :ref? true, :as :_ref, :reverse? true)])
     [:component]  (pattern :attrs [(attr :component, :ref? true, :component? true, :pattern dpp/default-pattern-component)])
     [:_component] (pattern :reverse-attrs [(attr :component, :ref? true, :component? true, :as :_component, :reverse? true)])
 
-    ; reverse
+; reverse
     [:_ref]    (pattern :reverse-attrs [(attr :ref, :as :_ref, :ref? true, :reverse? true)])
     [:ns/_ref] (pattern :reverse-attrs [(attr :ns/ref, :as :ns/_ref, :ref? true, :reverse? true)])
 
-    ; sorting
+; sorting
     [:c :b :a]            (pattern :attrs [(attr :a) (attr :b) (attr :c)])
     [:ref2 :ref3 :ref]    (pattern :attrs [(attr :ref, :ref? true) (attr :ref2, :ref? true) (attr :ref3, :ref? true)])
     [:_ref2 :_ref3 :_ref] (pattern :reverse-attrs [(attr :ref,  :ref? true, :as :_ref, :reverse? true)
@@ -67,7 +67,7 @@
                                                                  (attr :ref2, :ref? true)
                                                                  (attr :ref3, :ref? true, :as :ref)])
 
-    ; as
+; as
     ['(:normal :as :normal2)]  (pattern :attrs [(attr :normal :as :normal2)])
     ['(:normal :as "normal2")] (pattern :attrs [(attr :normal :as "normal2")])
     ['(:normal :as 123)]       (pattern :attrs [(attr :normal :as 123)])
@@ -75,7 +75,7 @@
     ['(:ns/_ref :as :ns/ref)]  (pattern :reverse-attrs [(attr :ns/ref, :as :ns/ref, :ref? true, :reverse? true)])
     ['(:db/id :as :id)]        (pattern :attrs [(attr :db/id :as :id)])
 
-    ; limit
+; limit
     [:multival]                (pattern :attrs [(attr :multival, :multival? true, :limit 1000)])
     ['(:multival :limit 100)]  (pattern :attrs [(attr :multival, :multival? true, :limit 100)])
     ['(limit :multival 100)]   (pattern :attrs [(attr :multival, :multival? true, :limit 100)])
@@ -83,24 +83,24 @@
     ['("limit" :multival 100)] (pattern :attrs [(attr :multival, :multival? true, :limit 100)])
     [['limit :multival 100]]   (pattern :attrs [(attr :multival, :multival? true, :limit 100)])
 
-    ; default
+; default
     ['(:multival :default :xyz)]  (pattern :attrs [(attr :multival, :multival? true, :limit 1000, :default :xyz)])
     ['(default :multival :xyz)]   (pattern :attrs [(attr :multival, :multival? true, :limit 1000, :default :xyz)])
     ['("default" :multival :xyz)] (pattern :attrs [(attr :multival, :multival? true, :limit 1000, :default :xyz)])
     [['default :multival :xyz]]   (pattern :attrs [(attr :multival, :multival? true, :limit 1000, :default :xyz)])
 
-    ; xform
+; xform
     [[:normal :xform 'inc]] (pattern :attrs [(attr :normal :xform inc)])
     [[:normal :xform inc]] (pattern :attrs [(attr :normal :xform inc)])
-    #?@(:clj [[[:normal :xform 'datascript.db/datom?]] (pattern :attrs [(attr :normal :xform db/datom?)])])
+    #?@(:clj [[[:normal :xform 'datascript-async.db/datom?]] (pattern :attrs [(attr :normal :xform db/datom?)])])
 
-    ; combined
+; combined
     ['(:multival :limit 100 :default :xyz :as :other :xform inc)] (pattern :attrs [(attr :multival, :multival? true, :default :xyz, :limit 100, :as :other, :xform inc)])
     ['(:multival :xform inc :as :other :default :xyz :limit 100)] (pattern :attrs [(attr :multival, :multival? true, :default :xyz, :limit 100, :as :other, :xform inc)])
     ['((:multival :limit 100) :default :xyz)] (pattern :attrs [(attr :multival, :multival? true, :default :xyz, :limit 100)])
     ['((:multival :default :xyz) :limit 100)] (pattern :attrs [(attr :multival, :multival? true, :default :xyz, :limit 100)])
 
-    ; combined
+; combined
     ['(limit (default :multival :xyz) 100)] (pattern :attrs [(attr :multival, :multival? true, :default :xyz, :limit 100)])
     ['(default (limit :multival 100) :xyz)] (pattern :attrs [(attr :multival, :multival? true, :default :xyz, :limit 100)])
     ['(limit (:multival :default :xyz) 100)] (pattern :attrs [(attr :multival, :multival? true, :default :xyz, :limit 100)])
@@ -108,12 +108,12 @@
     ['(((limit :multival 100) :default :xyz))] (pattern :attrs [(attr :multival, :multival? true, :default :xyz, :limit 100)])
     ['(((default :multival :xyz) :limit 100))] (pattern :attrs [(attr :multival, :multival? true, :default :xyz, :limit 100)])
     
-    ; repeated
+; repeated
     [:multival [:multival :default :xyz] [:multival :limit 100]] (pattern :attrs [(attr :multival, :multival? true, :limit 100)])
     [:ref {:ref '...}] (pattern :attrs [(attr :ref, :ref? true, :pattern nil, :recursive? true, :recursion-limit nil)])
     [{:ref '...} :ref] (pattern :attrs [(attr :ref, :ref? true)])
     
-    ; map spec
+; map spec
     [{:ref [:normal]}]                    (pattern :attrs [(attr :ref, :ref? true, :pattern (pattern :attrs [(attr :normal)]))])
     [{:_ref [:normal]}]                   (pattern :reverse-attrs [(attr :ref, :as :_ref, :ref? true, :reverse? true, :pattern (pattern :attrs [(attr :normal)]))])
     [{:ref '[*]}]                         (pattern :attrs [(attr :ref, :ref? true, :pattern (pattern :wildcard? true, :attrs [(attr :db/id)]))])
@@ -124,7 +124,7 @@
     [{'(limit :multiref 100) [:normal]}]  (pattern :attrs [(attr :multiref, :ref? true, :multival? true, :limit 100, :pattern (pattern :attrs [(attr :normal)]))])
     [{:component 1}]                      (pattern :attrs [(attr :component, :ref? true, :component? true, :pattern nil, :recursive? true, :recursion-limit 1)])
 
-    ; map spec limits
+; map spec limits
     [{:ref 100}]   (pattern :attrs         [(attr :ref,            :ref? true,                 :pattern nil, :recursive? true, :recursion-limit 100)])
     [{:ref '...}]  (pattern :attrs         [(attr :ref,            :ref? true,                 :pattern nil, :recursive? true, :recursion-limit nil)]) 
     [{:ref "..."}] (pattern :attrs         [(attr :ref,            :ref? true,                 :pattern nil, :recursive? true, :recursion-limit nil)])
@@ -133,27 +133,27 @@
 
   (testing "Error reporting"
     (are [pattern msg] (thrown-msg? msg (dpp/parse-pattern @*db pattern))
-      ; refs
+; refs
       [:_normal] "Expected reverse attribute having :db.type/ref, got: :_normal"
 
-      ; attr-expr
+; attr-expr
       ['(:multival :limit)] "Expected even number of opts, got: (:multival :limit)"
       
-      ; limit
+; limit
       ['(limit :multival)] "Expected ['limit attr-name (positive-number | nil)], got: (limit :multival)"
       ['(:normal :limit 100)] "Expected limit attribute having :db.cardinality/many, got: :normal"      
       ['(limit :normal 100)]  "Expected limit attribute having :db.cardinality/many, got: :normal"
       ['(:multival :limit :abc)] "Expected (positive-number | nil), got: :abc"
       ['(limit :multival :abc)]  "Expected (positive-number | nil), got: :abc"
 
-      ; default
+; default
       ['(default :normal)] "Expected ['default attr-name any-value], got: (default :normal)"
       ['(default :normal 1 2)] "Expected ['default attr-name any-value], got: (default :normal 1 2)"
 
-      ; xform
+; xform
       [[:normal :xform 'unknown]] "Can't resolve symbol unknown"
 
-      ; map spec
+; map spec
       [{:normal [:normal2]}] "Expected attribute having :db.type/ref, got: :normal"
       [{'(:ref :limit 100) [:normal]}] "Expected limit attribute having :db.cardinality/many, got: :ref"
       [{:ref :normal}] "Expected pattern to be sequential?, got: :normal")))
