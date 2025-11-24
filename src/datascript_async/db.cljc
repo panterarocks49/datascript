@@ -41,7 +41,7 @@
 
 ;; ----------------------------------------------------------------------------
 
-(defn #?@(:clj  [^Boolean seqable?]  
+(defn #?@(:clj  [^Boolean seqable?]
           :cljs [^boolean seqable?])
   [x]
   (and (not (string? x))
@@ -209,7 +209,7 @@
        IIndexed
        (-nth [this i] (nth-datom this i))
        (-nth [this i not-found] (nth-datom this i not-found))
-       
+
        IAssociative
        (-assoc [d k v] (assoc-datom d k v))
 
@@ -239,7 +239,7 @@
        (empty [d] (throw (UnsupportedOperationException. "empty is not supported on Datom")))
        (count [d] 5)
        (cons [d [k v]] (assoc-datom d k v))
-       
+
        clojure.lang.Indexed
        (nth [this i]           (nth-datom this i))
        (nth [this i not-found] (nth-datom this i not-found))
@@ -287,7 +287,7 @@
       :tx    (datom-tx d)
       :added (datom-added d)
       not-found)
-    
+
     (string? k)
     (case k
       "e"     (.-e d)
@@ -296,7 +296,7 @@
       "tx"    (datom-tx d)
       "added" (datom-added d)
       not-found)
-    
+
     :else
     not-found))
 
@@ -458,10 +458,10 @@
     (cond
       (< cx cy)
       -1
-      
+
       (> cx cy)
       1
-      
+
       :else
       (loop [xs xs
              ys ys]
@@ -472,13 +472,13 @@
             (cond
               (and (nil? x) (nil? y))
               (recur (next xs) (next ys))
-              
+
               (nil? x)
               -1
-              
+
               (nil? y)
               1
-              
+
               :else
               (let [v (value-compare x y)]
                 (if (= v 0)
@@ -784,7 +784,7 @@
        clojure.lang.IPersistentCollection
        (count [db]         (count eavt))
        (equiv [db other]   (equiv-db db other))
-       clojure.lang.IEditableCollection 
+       clojure.lang.IEditableCollection
        (empty [db]         (-> (restore-db
                                 {:schema  (.-schema db)
                                  :rschema (.-rschema db)
@@ -825,7 +825,7 @@
                              (mp/then #(filter (fn [^Datom d] (= tx (datom-tx d))) %)))
                          (set/slice eavt (datom e nil nil tx0) (datom e nil nil txmax))       ;; e _ _ _
                          (if (indexing? db a)                                                 ;; _ a v tx
-                           (-> (set/slice avet (datom e0 a v tx0) (datom emax a v txmax))      
+                           (-> (set/slice avet (datom e0 a v tx0) (datom emax a v txmax))
                                (mp/then #(filter (fn [^Datom d] (= tx (datom-tx d))) %)))
                            (-> (set/slice aevt (datom e0 a nil tx0) (datom emax a nil txmax))
                                (mp/then #(filter (fn [^Datom d] (and (pred (.-v d))
@@ -1068,7 +1068,7 @@
 
             (when (= :db.cardinality/many (:db/cardinality (get schema attr)))
               (util/raise a " :db/tupleAttrs can’t depend on :db.cardinality/many attribute: " attr ex-data))))))))
-  
+
 (defn ^DB empty-db [schema opts]
   {:pre [(or (nil? schema) (map? schema))]}
   (validate-schema schema)
@@ -1154,59 +1154,51 @@
       :pull-attrs    (lru/cache 100)
       :hash          (atom 0)})))
 
-(defn load-all-indexes [db]
-  (mp/let [eavt   (:eavt db)
-           datoms (seq eavt)]
-    (let [opts        {}
-          rschema     (:rschema db)
-          indexed     (:db/index rschema)
-          indexed-set #?(:cljs (->> indexed
-                                    (mapv (fn [attribute]
-                                            (if (keyword? attribute)
-                                              (.-fqn ^js attribute)
-                                              attribute)))
-                                    into-array
-                                    (js/Set.))
-                         :clj  (set indexed))
-          arr         (time (arrays/into-array datoms))
-          _ (prn "aevt")
-          arr-copy    (arrays/aclone arr)
-          ;; _           (time (arrays/asort arr-copy cmp-datoms-aevt-quick2))
-          ;; _           (time (arrays/asort (arrays/aclone arr) cmp-datoms-aevt))
-          _           (time (arrays/asort arr cmp-datoms-aevt-quick))
-          aevt        (set/from-sorted-array cmp-datoms-aevt arr (arrays/alength arr) opts)
-          _ (prn "eavt")
-          arr-copy    (arrays/aclone arr)
-          ;; _           (time (arrays/asort arr-copy cmp-datoms-eavt-quick2))
-          ;; _           (time (arrays/asort (arrays/aclone arr) cmp-datoms-eavt))
-          _           (time (arrays/asort arr cmp-datoms-eavt-quick))
-          avet-arr    (time
-                       #?(:cljs (.filter arr (fn [^Datom d]
-                                               (let [attribute (.-a d)
-                                                     a (if (keyword? attribute)
-                                                         (.-fqn ^js attribute)
-                                                         attribute)]
-                                                 (.has indexed-set a))))
-                          :clj (->> datoms
-                                    (filter (fn [^Datom d] (indexed-set (.-a d))))
-                                    into-array)))
-          _ (prn "avet")
-          avet-arr-copy (arrays/aclone avet-arr)
-          ;; _           (time (arrays/asort avet-arr-copy cmp-datoms-avet-quick2))
-          ;; _           (time (arrays/asort (arrays/aclone arr) cmp-datoms-avet))
-          _           (time (arrays/asort avet-arr cmp-datoms-avet-quick))
-          avet        (set/from-sorted-array cmp-datoms-avet avet-arr (arrays/alength avet-arr) opts)]
-      (map->DB
-       {:schema        (:schema db)
-        :rschema       rschema
-        :eavt          eavt
-        :aevt          aevt
-        :avet          avet
-        :max-eid       (:max-eid db)
-        :max-tx        (:max-tx db)
-        :pull-patterns (lru/cache 100)
-        :pull-attrs    (lru/cache 100)
-        :hash          (atom 0)}))))
+#?(:cljs
+   (defn load-all-indexes [db]
+     ;; TODO: storing this again will duplicate the data, does that matter?
+     ;; it seems faster to start with aevt and sort the others out
+     (mp/let [aevt   (:aevt db)
+              datoms (seq aevt)]
+       (let [opts        {}
+             rschema     (:rschema db)
+             indexed     (:db/index rschema)
+             indexed-set #?(:cljs (->> indexed
+                                       (mapv (fn [attribute]
+                                               (if (keyword? attribute)
+                                                 (.-fqn ^js attribute)
+                                                 attribute)))
+                                       into-array
+                                       (js/Set.))
+                            :clj  (set indexed))
+             ;; this could be faster by accessing the iterator's arrays
+             arr         (arrays/into-array datoms)
+             ;; just in case this resets the storage addresses, since this is a NEW database
+             aevt        (set/from-sorted-array cmp-datoms-aevt arr (arrays/alength arr) opts)
+             avet-arr    #?(:cljs (.filter arr (fn [^Datom d]
+                                                 (let [attribute (.-a d)
+                                                       a         (if (keyword? attribute)
+                                                                   (.-fqn ^js attribute)
+                                                                   attribute)]
+                                                   (.has indexed-set a))))
+                            :clj (->> datoms
+                                      (filter (fn [^Datom d] (indexed-set (.-a d))))
+                                      into-array))
+             _           (arrays/asort arr cmp-datoms-eavt-quick)
+             eavt        (set/from-sorted-array cmp-datoms-eavt arr (arrays/alength arr) opts)
+             _           (arrays/asort avet-arr cmp-datoms-avet-quick)
+             avet        (set/from-sorted-array cmp-datoms-avet avet-arr (arrays/alength avet-arr) opts)]
+         (map->DB
+          {:schema        (:schema db)
+           :rschema       rschema
+           :eavt          eavt
+           :aevt          aevt
+           :avet          avet
+           :max-eid       (:max-eid db)
+           :max-tx        (:max-tx db)
+           :pull-patterns (lru/cache 100)
+           :pull-attrs    (lru/cache 100)
+           :hash          (atom 0)})))))
 
 (defn+ restore-db ^DB [{:keys [schema eavt aevt avet max-eid max-tx] :as keys}]
   (map->DB
@@ -1710,7 +1702,7 @@
     [entity nil]))
 
 (defn validate-upserts
-  "Throws if not all upserts point to the same entity. 
+  "Throws if not all upserts point to the same entity.
    Returns single eid that all upserts point to, or null."
   [entity upserts]
   (let [upsert-ids (reduce-kv
